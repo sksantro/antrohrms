@@ -1,4 +1,9 @@
 import type { RolePermissions, User, UserRole } from '../types';
+import { SALES_MARKETING_DEPARTMENT } from '../types/employee';
+
+export function isSalesMarketingDepartment(department?: string | null): boolean {
+  return department === SALES_MARKETING_DEPARTMENT;
+}
 
 export function getPostLoginPath(user: User): string {
   if (user.must_change_password) {
@@ -59,7 +64,10 @@ export function getUserInitials(user: User | null): string {
   return source.slice(0, 2).toUpperCase();
 }
 
-export function getRolePermissions(role: UserRole): RolePermissions {
+export function getRolePermissions(role: UserRole, department?: string | null): RolePermissions {
+  const canAccessLeads =
+    role === 'SUPER_ADMIN' || (role === 'EMPLOYEE' && isSalesMarketingDepartment(department));
+
   return {
     can_manage_users: role === 'SUPER_ADMIN',
     can_manage_employees: role === 'SUPER_ADMIN' || role === 'HR_ADMIN',
@@ -103,6 +111,9 @@ export function getRolePermissions(role: UserRole): RolePermissions {
     can_manage_payroll_profiles: role === 'SUPER_ADMIN',
     can_view_company_settings:
       role === 'SUPER_ADMIN' || role === 'HR_ADMIN' || role === 'MANAGER' || role === 'FINANCE',
+    can_view_leads: canAccessLeads,
+    can_manage_leads: canAccessLeads,
+    can_view_sales_command_center: role === 'SUPER_ADMIN',
   };
 }
 
@@ -203,4 +214,34 @@ export function formatEmploymentType(value: string): string {
 
 export function formatStatus(value: string): string {
   return value.charAt(0) + value.slice(1).toLowerCase();
+}
+
+export function getLeadsBasePath(role: UserRole): string {
+  return role === 'SUPER_ADMIN' ? '/admin/leads' : '/employee/leads';
+}
+
+export function getLeadsListPath(role: UserRole): string {
+  return `${getLeadsBasePath(role)}/list`;
+}
+
+export function getSalesCommandCenterPath(): string {
+  return '/admin/sales';
+}
+
+export function getLeadsUploadPath(role: UserRole): string {
+  return `${getLeadsBasePath(role)}/upload`;
+}
+
+export function formatLeadStatus(value: string): string {
+  return value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function formatLeadServiceFit(value: string): string {
+  const labels: Record<string, string> = {
+    ANTRO_WORKFORCE: 'Antro Workforce Services',
+    WODENA_TECHNOLOGY: 'Wodena Technology Services',
+    IGOLO_INTERIOR: 'Igolo Interior Services',
+    TECHNOLOGY_SOLUTIONS: 'Technology Solutions',
+  };
+  return labels[value] ?? value;
 }

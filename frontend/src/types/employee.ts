@@ -1,5 +1,19 @@
 import type { UserRole } from './auth';
 
+export const EMPLOYEE_DEPARTMENTS = [
+  'Sales & Marketing',
+  'HR',
+  'Technology',
+  'Operations',
+  'Management',
+  'Finance',
+  'Admin',
+] as const;
+
+export const SALES_MARKETING_DEPARTMENT = 'Sales & Marketing' as const;
+
+export type EmployeeDepartment = (typeof EMPLOYEE_DEPARTMENTS)[number];
+
 export type EmploymentType = 'FULL_TIME' | 'INTERN' | 'CONTRACT' | 'CONSULTANT';
 export type EmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'RESIGNED' | 'TERMINATED';
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER' | '';

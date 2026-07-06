@@ -1,9 +1,11 @@
 import { useState } from 'react';
 
+import { SalesCheckoutModal } from '../sales/SalesCheckoutModal';
 import { ApiError } from '../../services/api';
 import { attendanceService } from '../../services/attendanceService';
+import { useAuth } from '../../hooks/useAuth';
 import type { Attendance, WorkMode } from '../../types';
-import { formatAttendanceStatus, formatTime, formatWorkMode } from '../../utils/rbac';
+import { formatAttendanceStatus, formatTime, formatWorkMode, isSalesMarketingDepartment } from '../../utils/rbac';
 import { AttendanceStatusBadge } from './AttendanceStatusBadge';
 
 interface CheckInOutPanelProps {
@@ -13,9 +15,13 @@ interface CheckInOutPanelProps {
 }
 
 export function CheckInOutPanel({ today, onUpdated, compact = false }: CheckInOutPanelProps) {
+  const { user } = useAuth();
   const [workMode, setWorkMode] = useState<WorkMode>('OFFICE');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+
+  const salesCheckout = isSalesMarketingDepartment(user?.department);
 
   const canCheckIn = !today;
   const canCheckOut = Boolean(today?.check_in_time && !today?.check_out_time);
@@ -44,6 +50,19 @@ export function CheckInOutPanel({ today, onUpdated, compact = false }: CheckInOu
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCheckoutClick = () => {
+    if (salesCheckout) {
+      setCheckoutModalOpen(true);
+      return;
+    }
+    void handleCheckOut();
+  };
+
+  const handleSalesCheckoutSuccess = () => {
+    setCheckoutModalOpen(false);
+    onUpdated();
   };
 
   return (
@@ -101,10 +120,19 @@ export function CheckInOutPanel({ today, onUpdated, compact = false }: CheckInOu
 
       {canCheckOut ? (
         <div className="check-actions">
-          <button type="button" className="btn-primary" disabled={isSubmitting} onClick={() => void handleCheckOut()}>
+          <button type="button" className="btn-primary" disabled={isSubmitting} onClick={handleCheckoutClick}>
             {isSubmitting ? 'Checking out...' : 'Check Out'}
           </button>
         </div>
+      ) : null}
+
+      {salesCheckout ? (
+        <SalesCheckoutModal
+          open={checkoutModalOpen}
+          isSubmitting={isSubmitting}
+          onClose={() => setCheckoutModalOpen(false)}
+          onSuccess={handleSalesCheckoutSuccess}
+        />
       ) : null}
 
       {today?.check_out_time ? (

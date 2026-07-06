@@ -11,6 +11,7 @@ export interface User {
   full_name: string;
   phone: string;
   role: UserRole;
+  department?: string | null;
   is_active: boolean;
   is_staff: boolean;
   must_change_password: boolean;
@@ -98,6 +99,9 @@ export type PermissionKey =
   | 'can_manage_salary_structures'
   | 'can_manage_payroll_runs'
   | 'can_manage_payroll_profiles'
-  | 'can_view_company_settings';
+  | 'can_view_company_settings'
+  | 'can_view_leads'
+  | 'can_manage_leads'
+  | 'can_view_sales_command_center';
 
 export type RolePermissions = Record<PermissionKey, boolean>;

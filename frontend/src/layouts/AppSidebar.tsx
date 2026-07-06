@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import type { PermissionKey } from '../types';
 import { sidebarIcons, type SidebarIconName } from './sidebarIcons';
 
-type SidebarSectionId = 'MAIN' | 'PEOPLE' | 'TIME_LEAVE' | 'PAYROLL' | 'POLICIES' | 'SETTINGS';
+type SidebarSectionId = 'MAIN' | 'SALES' | 'PEOPLE' | 'TIME_LEAVE' | 'PAYROLL' | 'POLICIES' | 'SETTINGS';
 
 interface NavItem {
   to: string;
@@ -16,6 +16,7 @@ interface NavItem {
 
 const SECTION_LABELS: Record<SidebarSectionId, string> = {
   MAIN: 'Main',
+  SALES: 'Sales',
   PEOPLE: 'People',
   TIME_LEAVE: 'Time & Leave',
   PAYROLL: 'Payroll',
@@ -25,6 +26,7 @@ const SECTION_LABELS: Record<SidebarSectionId, string> = {
 
 const SECTION_ORDER: SidebarSectionId[] = [
   'MAIN',
+  'SALES',
   'PEOPLE',
   'TIME_LEAVE',
   'PAYROLL',
@@ -64,6 +66,15 @@ function buildNavItems(can: (permission: PermissionKey) => boolean, role: string
   }
   if (can('can_view_employee_dashboard')) {
     items.push({ to: '/employee/dashboard', label: 'Dashboard', end: true, section: 'MAIN', icon: 'dashboard' });
+  }
+
+  if (can('can_view_sales_command_center')) {
+    items.push({ to: '/admin/sales', label: 'Sales Command Center', section: 'SALES', icon: 'reports' });
+  }
+
+  if (can('can_view_leads')) {
+    const leadsPath = role === 'SUPER_ADMIN' ? '/admin/leads' : '/employee/leads';
+    items.push({ to: leadsPath, label: 'Lead Management', section: 'SALES', icon: 'leads' });
   }
 
   if (can('can_manage_users')) {
