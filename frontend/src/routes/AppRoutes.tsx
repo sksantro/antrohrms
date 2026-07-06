@@ -31,12 +31,18 @@ import { PayrollRunListPage } from '../pages/payroll/PayrollRunListPage';
 import { PayrollProfileDetailPage } from '../pages/payroll/PayrollProfileDetailPage';
 import { PayrollProfileFormPage } from '../pages/payroll/PayrollProfileFormPage';
 import { PayrollProfileListPage } from '../pages/payroll/PayrollProfileListPage';
-import { EmployeeDashboardPage } from '../pages/EmployeeDashboardPage';
+import { EmployeeDashboardRouter } from '../pages/EmployeeDashboardRouter';
 import { EmployeeDetailPage } from '../pages/employees/EmployeeDetailPage';
 import { EmployeeFormPage } from '../pages/employees/EmployeeFormPage';
 import { EmployeeListPage } from '../pages/employees/EmployeeListPage';
 import { MyProfilePage } from '../pages/employees/MyProfilePage';
 import { FinanceDashboardPage } from '../pages/FinanceDashboardPage';
+import { LeadBulkUploadPage } from '../pages/leads/LeadBulkUploadPage';
+import { LeadDashboardPage } from '../pages/leads/LeadDashboardPage';
+import { LeadDetailPage } from '../pages/leads/LeadDetailPage';
+import { LeadListPage } from '../pages/leads/LeadListPage';
+import { SalesCommandCenterPage } from '../pages/sales/SalesCommandCenterPage';
+import { SalesEmployeeDetailPage } from '../pages/sales/SalesEmployeeDetailPage';
 import { LoginPage } from '../pages/LoginPage';
 import { ManagerDashboardPage } from '../pages/ManagerDashboardPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -337,6 +343,54 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/sales/employees/:userId"
+            element={
+              <ProtectedRoute requiredPermission="can_view_sales_command_center">
+                <SalesEmployeeDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/sales"
+            element={
+              <ProtectedRoute requiredPermission="can_view_sales_command_center">
+                <SalesCommandCenterPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/leads/upload"
+            element={
+              <ProtectedRoute requiredPermission="can_view_leads">
+                <LeadBulkUploadPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/leads/list"
+            element={
+              <ProtectedRoute requiredPermission="can_view_leads">
+                <LeadListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/leads"
+            element={
+              <ProtectedRoute requiredPermission="can_view_leads">
+                <LeadDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/leads/:id"
+            element={
+              <ProtectedRoute requiredPermission="can_view_leads">
+                <LeadDetailPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
         </Route>
       </Route>
@@ -549,7 +603,39 @@ export function AppRoutes() {
       >
         <Route element={<RequirePasswordChanged />}>
         <Route element={<DashboardLayout />}>
-          <Route path="/employee/dashboard" element={<EmployeeDashboardPage />} />
+          <Route path="/employee/dashboard" element={<EmployeeDashboardRouter />} />
+          <Route
+            path="/employee/leads/upload"
+            element={
+              <ProtectedRoute requiredPermission="can_view_leads">
+                <LeadBulkUploadPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/employee/leads/list"
+            element={
+              <ProtectedRoute requiredPermission="can_view_leads">
+                <LeadListPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/employee/leads"
+            element={
+              <ProtectedRoute requiredPermission="can_view_leads">
+                <LeadDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/employee/leads/:id"
+            element={
+              <ProtectedRoute requiredPermission="can_view_leads">
+                <LeadDetailPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/employee/profile"
             element={

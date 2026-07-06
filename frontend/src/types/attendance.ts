@@ -68,3 +68,18 @@ export interface AttendanceUpdatePayload {
   status?: AttendanceStatus;
   remarks?: string;
 }
+
+export interface DailyReportSummary {
+  work_summary_today: string;
+  key_companies_worked_on: string;
+  interested_leads_summary: string;
+  meetings_demo_updates: string;
+  issues_blockers: string;
+}
+
+export interface SalesCheckOutPayload {
+  remarks?: string;
+  daily_report_summary: DailyReportSummary;
+  tomorrow_plan: string;
+  kpi_miss_reason?: string;
+}
