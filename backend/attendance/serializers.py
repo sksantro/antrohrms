@@ -33,6 +33,10 @@ class AttendanceSerializer(serializers.ModelSerializer):
             'total_work_hours',
             'late_minutes',
             'remarks',
+            'daily_report_summary',
+            'tomorrow_plan',
+            'kpi_snapshot',
+            'kpi_miss_reason',
             'created_at',
             'updated_at',
         )
@@ -123,8 +127,63 @@ class CheckInSerializer(serializers.Serializer):
     work_mode = serializers.ChoiceField(choices=Attendance.WorkMode.choices)
 
 
+class DailyReportSummarySerializer(serializers.Serializer):
+    work_summary_today = serializers.CharField()
+    key_companies_worked_on = serializers.CharField()
+    interested_leads_summary = serializers.CharField()
+    meetings_demo_updates = serializers.CharField()
+    issues_blockers = serializers.CharField()
+
+    def validate(self, attrs):
+        for field, value in attrs.items():
+            if not str(value).strip():
+                raise serializers.ValidationError({field: 'This field is required.'})
+        return attrs
+
+
 class CheckOutSerializer(serializers.Serializer):
     remarks = serializers.CharField(required=False, allow_blank=True)
+    daily_report_summary = DailyReportSummarySerializer(required=False)
+    tomorrow_plan = serializers.CharField(required=False, allow_blank=True)
+    kpi_miss_reason = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        from attendance.sales_checkout import is_sales_marketing_user
+        from leads.kpi import get_daily_kpi_summary
+
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+
+        if not is_sales_marketing_user(user):
+            attrs.pop('daily_report_summary', None)
+            attrs.pop('tomorrow_plan', None)
+            attrs.pop('kpi_miss_reason', None)
+            return attrs
+
+        report = attrs.get('daily_report_summary')
+        if not report:
+            raise serializers.ValidationError({
+                'daily_report_summary': 'Daily report is required for Sales & Marketing checkout.',
+            })
+
+        tomorrow_plan = attrs.get('tomorrow_plan', '').strip()
+        if not tomorrow_plan:
+            raise serializers.ValidationError({
+                'tomorrow_plan': 'Tomorrow plan is required for Sales & Marketing checkout.',
+            })
+        attrs['tomorrow_plan'] = tomorrow_plan
+
+        kpi_snapshot = get_daily_kpi_summary(user)
+        has_unmatched_kpi = any(
+            metric['status'] == 'Not Matched' for metric in kpi_snapshot['metrics']
+        )
+        kpi_miss_reason = attrs.get('kpi_miss_reason', '').strip()
+        if has_unmatched_kpi and not kpi_miss_reason:
+            raise serializers.ValidationError({
+                'kpi_miss_reason': 'KPI miss reason is required when daily targets are not matched.',
+            })
+        attrs['kpi_miss_reason'] = kpi_miss_reason
+        return attrs
 
 
 class AttendanceSummarySerializer(serializers.Serializer):

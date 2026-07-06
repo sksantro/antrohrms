@@ -23,7 +23,7 @@ from attendance.services import (
     get_today,
     resolve_status,
 )
-from employees.models import Employee
+from attendance.sales_checkout import is_sales_marketing_user
 
 
 class AttendanceViewSet(viewsets.ModelViewSet):
@@ -132,7 +132,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if not (request.user.is_employee_user or request.user.is_manager):
             return Response({'detail': 'Only employees can check out.'}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = CheckOutSerializer(data=request.data)
+        serializer = CheckOutSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
         employee = self._get_employee_profile(request.user)
@@ -158,6 +158,25 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         )
         if serializer.validated_data.get('remarks'):
             attendance.remarks = serializer.validated_data['remarks']
+
+        if serializer.validated_data.get('daily_report_summary') is not None:
+            attendance.daily_report_summary = serializer.validated_data['daily_report_summary']
+            attendance.tomorrow_plan = serializer.validated_data.get('tomorrow_plan', '')
+            attendance.kpi_miss_reason = serializer.validated_data.get('kpi_miss_reason', '')
+            if is_sales_marketing_user(request.user):
+                from leads.kpi import get_daily_kpi_summary
+                from leads.risk_events import record_checkout_events
+
+                attendance.kpi_snapshot = get_daily_kpi_summary(request.user)
+                kpi_snapshot = attendance.kpi_snapshot
+                has_unmatched_kpi = any(
+                    metric['status'] == 'Not Matched' for metric in kpi_snapshot.get('metrics', [])
+                )
+                record_checkout_events(
+                    request.user,
+                    attendance.kpi_miss_reason,
+                    has_unmatched_kpi,
+                )
 
         if attendance.status not in {
             Attendance.Status.HALF_DAY,

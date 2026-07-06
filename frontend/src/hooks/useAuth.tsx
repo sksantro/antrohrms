@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applyUser = useCallback((nextUser: User) => {
     setUser(nextUser);
-    setPermissions(getRolePermissions(nextUser.role));
+    setPermissions(getRolePermissions(nextUser.role, nextUser.department));
   }, []);
 
   const refreshUser = useCallback(async () => {

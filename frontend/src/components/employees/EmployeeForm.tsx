@@ -1,5 +1,6 @@
 import { Button, DatePicker, FormSection, Input, Select, Textarea } from '../ui';
 import type { Employee, EmployeeFormData } from '../../types';
+import { EMPLOYEE_DEPARTMENTS } from '../../types/employee';
 import { formatEmploymentType, formatStatus } from '../../utils/rbac';
 
 interface EmployeeFormProps {
@@ -119,13 +120,20 @@ export function EmployeeForm({
             placeholder="Select joining date"
             required
           />
-          <Input
+          <Select
             id="employee_department"
             label="Department"
             value={form.department}
             onChange={(e) => update('department', e.target.value)}
             required
-          />
+          >
+            <option value="">Select department</option>
+            {EMPLOYEE_DEPARTMENTS.map((department) => (
+              <option key={department} value={department}>
+                {department}
+              </option>
+            ))}
+          </Select>
           <Input
             id="employee_designation"
             label="Designation"

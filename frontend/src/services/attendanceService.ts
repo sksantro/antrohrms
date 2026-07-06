@@ -6,6 +6,7 @@ import type {
   AttendanceSummary,
   AttendanceUpdatePayload,
   MyAttendanceResponse,
+  SalesCheckOutPayload,
   WorkMode,
 } from '../types';
 
@@ -54,10 +55,13 @@ export const attendanceService = {
     });
   },
 
-  checkOut(remarks = ''): Promise<Attendance> {
+  checkOut(remarksOrPayload: string | SalesCheckOutPayload = ''): Promise<Attendance> {
+    const body = typeof remarksOrPayload === 'string'
+      ? { remarks: remarksOrPayload }
+      : remarksOrPayload;
     return apiRequest<Attendance>('/attendance/check-out/', {
       method: 'POST',
-      body: { remarks },
+      body,
     });
   },
 

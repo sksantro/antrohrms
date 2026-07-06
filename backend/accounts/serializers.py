@@ -1,4 +1,5 @@
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -6,6 +7,8 @@ from accounts.models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
+    department = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = (
@@ -14,6 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
             'full_name',
             'phone',
             'role',
+            'department',
             'is_active',
             'is_staff',
             'must_change_password',
@@ -21,7 +25,13 @@ class UserSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         )
-        read_only_fields = ('id', 'date_joined', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'department', 'date_joined', 'created_at', 'updated_at')
+
+    def get_department(self, obj):
+        try:
+            return obj.employee_profile.department
+        except ObjectDoesNotExist:
+            return None
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

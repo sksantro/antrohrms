@@ -48,8 +48,8 @@ function LogoutIcon() {
 export function AppHeader({ onLogout }: AppHeaderProps) {
   const { user } = useAuth();
   const { pathname } = useLocation();
-  const pageTitle = getPageTitle(pathname);
-  const pageSubtitle = getPageSubtitle(pathname);
+  const pageTitle = getPageTitle(pathname, user);
+  const pageSubtitle = getPageSubtitle(pathname, user);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 

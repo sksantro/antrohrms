@@ -45,6 +45,7 @@ LOCAL_APPS = [
     'payroll',
     'documents',
     'policies',
+    'leads',
     'settings_app',
     'audit_logs',
 ]

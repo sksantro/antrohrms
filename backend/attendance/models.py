@@ -46,6 +46,10 @@ class Attendance(models.Model):
     )
     late_minutes = models.PositiveIntegerField(default=0)
     remarks = models.TextField(blank=True)
+    daily_report_summary = models.JSONField(null=True, blank=True)
+    tomorrow_plan = models.TextField(blank=True)
+    kpi_snapshot = models.JSONField(null=True, blank=True)
+    kpi_miss_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

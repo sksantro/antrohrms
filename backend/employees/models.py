@@ -23,6 +23,15 @@ class Employee(models.Model):
         RESIGNED = 'RESIGNED', 'Resigned'
         TERMINATED = 'TERMINATED', 'Terminated'
 
+    class Department(models.TextChoices):
+        SALES_MARKETING = 'Sales & Marketing', 'Sales & Marketing'
+        HR = 'HR', 'HR'
+        TECHNOLOGY = 'Technology', 'Technology'
+        OPERATIONS = 'Operations', 'Operations'
+        MANAGEMENT = 'Management', 'Management'
+        FINANCE = 'Finance', 'Finance'
+        ADMIN = 'Admin', 'Admin'
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -37,7 +46,7 @@ class Employee(models.Model):
     gender = models.CharField(max_length=10, choices=Gender.choices, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     joining_date = models.DateField()
-    department = models.CharField(max_length=100)
+    department = models.CharField(max_length=100, choices=Department.choices)
     designation = models.CharField(max_length=100)
     reporting_manager = models.ForeignKey(
         'self',

@@ -6,7 +6,15 @@ export type {
   Gender,
   ReportingManager,
 } from './employee';
-export { emptyEmployeeForm } from './employee';
+export { emptyEmployeeForm, EMPLOYEE_DEPARTMENTS } from './employee';
+
+export type { Lead, LeadContact, LeadContactFormData, LeadFormData, LeadServiceFit, LeadStatus } from './lead';
+export {
+  emptyLeadContactForm,
+  emptyLeadForm,
+  LEAD_SERVICE_FIT_OPTIONS,
+  LEAD_STATUS_OPTIONS,
+} from './lead';
 
 export type {
   EmployeePayrollDraft,
@@ -50,7 +58,9 @@ export type {
   AttendanceStatus,
   AttendanceSummary,
   AttendanceUpdatePayload,
+  DailyReportSummary,
   MyAttendanceResponse,
+  SalesCheckOutPayload,
   WorkMode,
 } from './attendance';
 
