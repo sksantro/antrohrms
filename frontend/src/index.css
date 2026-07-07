@@ -1624,8 +1624,9 @@ p {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #9098ac;
+  color: #667085;
   cursor: pointer;
+  z-index: 2;
   transition:
     color 0.15s ease,
     background 0.15s ease;
@@ -1634,6 +1635,10 @@ p {
 .auth-toggle:hover {
   color: var(--antro-purple);
   background: rgba(75, 45, 132, 0.06);
+}
+
+.auth-toggle svg {
+  display: block;
 }
 
 .auth-toggle:focus-visible {

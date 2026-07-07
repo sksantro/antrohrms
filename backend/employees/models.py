@@ -2,10 +2,12 @@ import re
 from datetime import timedelta
 
 from django.conf import settings
-from django.db import models
+from django.db import IntegrityError, models, transaction
 
 
 class Employee(models.Model):
+    CODE_PREFIX = 'ANT-EMP-'
+
     class Gender(models.TextChoices):
         MALE = 'MALE', 'Male'
         FEMALE = 'FEMALE', 'Female'
@@ -100,7 +102,29 @@ class Employee(models.Model):
         codes = cls.objects.values_list('employee_code', flat=True)
         max_num = 0
         for code in codes:
-            match = re.match(r'ANTRO(\d+)', code)
+            if not code:
+                continue
+            match = re.match(rf'^{re.escape(cls.CODE_PREFIX)}(\d+)$', code)
             if match:
                 max_num = max(max_num, int(match.group(1)))
-        return f'ANTRO{max_num + 1:03d}'
+        return f'{cls.CODE_PREFIX}{max_num + 1:04d}'
+
+    def save(self, *args, **kwargs):
+        if self.employee_code and self.employee_code.strip():
+            self.employee_code = self.employee_code.strip()
+            return super().save(*args, **kwargs)
+
+        if not self._state.adding:
+            self.employee_code = self.generate_employee_code()
+            return super().save(*args, **kwargs)
+
+        # Retry code generation on rare concurrent inserts.
+        for _ in range(5):
+            self.employee_code = self.generate_employee_code()
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError as exc:
+                if 'employee_code' not in str(exc):
+                    raise
+        raise IntegrityError('Unable to generate a unique employee code after multiple attempts.')

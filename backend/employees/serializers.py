@@ -135,7 +135,6 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user_role = validated_data.pop('user_role', User.Role.EMPLOYEE)
         full_name = f"{validated_data['first_name']} {validated_data['last_name']}".strip()
-        employee_code = Employee.generate_employee_code()
         temporary_password = generate_temporary_password()
 
         user = User.objects.create_user(
@@ -149,7 +148,6 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
 
         employee = Employee.objects.create(
             user=user,
-            employee_code=employee_code,
             **validated_data,
         )
         employee.temporary_password = temporary_password
