@@ -3,6 +3,8 @@ import type { Employee, EmployeeFormData } from '../../types';
 import { EMPLOYEE_DEPARTMENTS } from '../../types/employee';
 import { formatEmploymentType, formatStatus } from '../../utils/rbac';
 
+export type EmployeeFormVariant = 'full' | 'hr';
+
 interface EmployeeFormProps {
   form: EmployeeFormData;
   managers: Employee[];
@@ -10,6 +12,7 @@ interface EmployeeFormProps {
   isSubmitting?: boolean;
   error?: string | null;
   allowElevatedRoles?: boolean;
+  variant?: EmployeeFormVariant;
   onChange: (form: EmployeeFormData) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -22,17 +25,20 @@ export function EmployeeForm({
   isSubmitting = false,
   error,
   allowElevatedRoles = false,
+  variant = 'full',
   onChange,
   onSubmit,
   onCancel,
 }: EmployeeFormProps) {
+  const isHrVariant = variant === 'hr';
+
   const update = (field: keyof EmployeeFormData, value: string | number) => {
     onChange({ ...form, [field]: value });
   };
 
   return (
     <form
-      className="employee-form"
+      className={`employee-form${isHrVariant ? ' employee-form--hr' : ''}`}
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
@@ -40,7 +46,7 @@ export function EmployeeForm({
     >
       {error ? <p className="form-error">{error}</p> : null}
 
-      <FormSection title="Basic Information">
+      <FormSection title={isHrVariant ? 'Employee Details' : 'Basic Information'}>
         <div className="employee-form-grid">
           <Input
             id="employee_first_name"
@@ -72,40 +78,54 @@ export function EmployeeForm({
             onChange={(e) => update('phone', e.target.value)}
             required
           />
-          <Select
-            id="employee_gender"
-            label="Gender"
-            value={form.gender}
-            onChange={(e) => update('gender', e.target.value)}
-          >
-            <option value="">Select</option>
-            <option value="MALE">Male</option>
-            <option value="FEMALE">Female</option>
-            <option value="OTHER">Other</option>
-          </Select>
-          <DatePicker
-            id="employee_date_of_birth"
-            label="Date of Birth"
-            value={form.date_of_birth}
-            onChange={(value) => update('date_of_birth', value)}
-            placeholder="Select birth date"
-          />
           {!isEdit ? (
-            <Select
-              id="employee_user_role"
-              label="User Role"
-              value={form.user_role}
-              onChange={(e) => update('user_role', e.target.value)}
-            >
-              <option value="EMPLOYEE">Employee</option>
-              {allowElevatedRoles ? (
-                <>
-                  <option value="MANAGER">Manager</option>
-                  <option value="HR_ADMIN">HR Admin</option>
-                  <option value="FINANCE">Finance</option>
-                </>
+            <Input
+              id="employee_code"
+              label="Employee Code"
+              value={form.employee_code ?? ''}
+              onChange={(e) => update('employee_code', e.target.value.toUpperCase())}
+              placeholder="Leave blank to auto-generate"
+              hint="Optional. Example: ANT-EMP-0001"
+            />
+          ) : null}
+          {!isHrVariant ? (
+            <>
+              <Select
+                id="employee_gender"
+                label="Gender"
+                value={form.gender}
+                onChange={(e) => update('gender', e.target.value)}
+              >
+                <option value="">Select</option>
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+                <option value="OTHER">Other</option>
+              </Select>
+              <DatePicker
+                id="employee_date_of_birth"
+                label="Date of Birth"
+                value={form.date_of_birth}
+                onChange={(value) => update('date_of_birth', value)}
+                placeholder="Select birth date"
+              />
+              {!isEdit ? (
+                <Select
+                  id="employee_user_role"
+                  label="User Role"
+                  value={form.user_role}
+                  onChange={(e) => update('user_role', e.target.value)}
+                >
+                  <option value="EMPLOYEE">Employee</option>
+                  {allowElevatedRoles ? (
+                    <>
+                      <option value="MANAGER">Manager</option>
+                      <option value="HR_ADMIN">HR Admin</option>
+                      <option value="FINANCE">Finance</option>
+                    </>
+                  ) : null}
+                </Select>
               ) : null}
-            </Select>
+            </>
           ) : null}
         </div>
       </FormSection>
@@ -189,41 +209,45 @@ export function EmployeeForm({
         </div>
       </FormSection>
 
-      <FormSection title="Contact Details">
-        <div className="employee-form-grid">
-          <Input
-            id="employee_alternate_phone"
-            label="Alternate Phone"
-            value={form.alternate_phone}
-            onChange={(e) => update('alternate_phone', e.target.value)}
-          />
-          <Textarea
-            id="employee_address"
-            label="Address"
-            className="employee-form-grid__span-full"
-            value={form.address}
-            onChange={(e) => update('address', e.target.value)}
-            rows={3}
-          />
-        </div>
-      </FormSection>
+      {!isHrVariant ? (
+        <>
+          <FormSection title="Contact Details">
+            <div className="employee-form-grid">
+              <Input
+                id="employee_alternate_phone"
+                label="Alternate Phone"
+                value={form.alternate_phone}
+                onChange={(e) => update('alternate_phone', e.target.value)}
+              />
+              <Textarea
+                id="employee_address"
+                label="Address"
+                className="employee-form-grid__span-full"
+                value={form.address}
+                onChange={(e) => update('address', e.target.value)}
+                rows={3}
+              />
+            </div>
+          </FormSection>
 
-      <FormSection title="Emergency Contact">
-        <div className="employee-form-grid">
-          <Input
-            id="employee_emergency_contact_name"
-            label="Emergency Contact Name"
-            value={form.emergency_contact_name}
-            onChange={(e) => update('emergency_contact_name', e.target.value)}
-          />
-          <Input
-            id="employee_emergency_contact_phone"
-            label="Emergency Contact Phone"
-            value={form.emergency_contact_phone}
-            onChange={(e) => update('emergency_contact_phone', e.target.value)}
-          />
-        </div>
-      </FormSection>
+          <FormSection title="Emergency Contact">
+            <div className="employee-form-grid">
+              <Input
+                id="employee_emergency_contact_name"
+                label="Emergency Contact Name"
+                value={form.emergency_contact_name}
+                onChange={(e) => update('emergency_contact_name', e.target.value)}
+              />
+              <Input
+                id="employee_emergency_contact_phone"
+                label="Emergency Contact Phone"
+                value={form.emergency_contact_phone}
+                onChange={(e) => update('emergency_contact_phone', e.target.value)}
+              />
+            </div>
+          </FormSection>
+        </>
+      ) : null}
 
       <div className="employee-form-actions">
         <Button type="button" variant="secondary" onClick={onCancel}>

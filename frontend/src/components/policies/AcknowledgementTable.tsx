@@ -20,10 +20,14 @@ export function AcknowledgementTable({ records }: { records: PolicyAcknowledgeme
     <Table className="payroll-table">
       <thead>
         <tr>
-          <th>Employee</th>
-          <th>Policy</th>
+          <th>Employee Name</th>
+          <th>Email</th>
+          <th>Department</th>
+          <th>Policy Name</th>
+          <th>Policy Version</th>
           <th>Status</th>
-          <th>Acknowledged At</th>
+          <th>Acknowledged Date</th>
+          <th>Proof / Action</th>
         </tr>
       </thead>
       <tbody>
@@ -35,11 +39,15 @@ export function AcknowledgementTable({ records }: { records: PolicyAcknowledgeme
                 <span className="payroll-emp__name">{record.employee_name}</span>
               </div>
             </td>
+            <td>{record.employee_email}</td>
+            <td>{record.employee_department}</td>
             <td>
               <div className="payroll-emp">
-                <span className="payroll-emp__code">{record.policy_title}</span>
-                <span className="payroll-emp__name">v{record.policy_version}</span>
+                <span className="payroll-emp__name">{record.policy_title}</span>
               </div>
+            </td>
+            <td>
+              <span className="pol-version-pill">v{record.policy_version}</span>
             </td>
             <td>
               <AcknowledgementStatusBadge status={record.status} />
@@ -49,6 +57,13 @@ export function AcknowledgementTable({ records }: { records: PolicyAcknowledgeme
                 new Date(record.acknowledged_at).toLocaleString('en-IN')
               ) : (
                 <span className="muted">—</span>
+              )}
+            </td>
+            <td>
+              {record.status === 'ACKNOWLEDGED' ? (
+                <span className="pol-proof-ref">{record.proof_reference}</span>
+              ) : (
+                <span className="muted">Pending acknowledgement</span>
               )}
             </td>
           </tr>

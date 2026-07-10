@@ -16,7 +16,14 @@ function buildQuery(filters: AttendanceFilters = {}): string {
   if (filters.department) params.set('department', filters.department);
   if (filters.month) params.set('month', String(filters.month));
   if (filters.year) params.set('year', String(filters.year));
+  if (filters.date) params.set('date', filters.date);
+  if (filters.date_from) params.set('date_from', filters.date_from);
+  if (filters.date_to) params.set('date_to', filters.date_to);
   if (filters.status) params.set('status', filters.status);
+  if (filters.search) params.set('search', filters.search);
+  if (filters.regularization_status) {
+    params.set('regularization_status', filters.regularization_status);
+  }
   const query = params.toString();
   return query ? `?${query}` : '';
 }

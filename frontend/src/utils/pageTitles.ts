@@ -1,10 +1,31 @@
 import type { User } from '../types';
-import { isSalesMarketingDepartment } from './rbac';
+import { isHRDepartment, isSalesMarketingDepartment } from './rbac';
 
 const LEAD_DETAIL_PATH = /^\/(admin|employee)\/leads\/\d+$/;
 const SALES_EMPLOYEE_DETAIL_PATH = /^\/admin\/sales\/employees\/\d+$/;
 
 const routeTitles: Array<[string, string]> = [
+  ['/hr/my-regularization', 'My Regularization'],
+  ['/hr/my-policies/pending', 'Pending Acknowledgements'],
+  ['/hr/my-policies', 'My Policies'],
+  ['/hr/my-leaves/apply', 'Apply Leave'],
+  ['/hr/my-leaves', 'My Leaves'],
+  ['/hr/my-attendance', 'My Attendance'],
+  ['/hr/my-profile', 'My Profile'],
+  ['/hr/attendance', 'Attendance View'],
+  ['/hr/company-settings', 'HR Settings'],
+  ['/hr/leave-management', 'Leave Management'],
+  ['/hr/policy-compliance', 'Policy Compliance'],
+  ['/hr/policies/compliance', 'Policy Compliance'],
+  ['/hr/policies/new', 'Create Policy'],
+  ['/hr/policies', 'Policies'],
+  ['/hr/onboarding/new', 'Create Onboarding'],
+  ['/hr/onboarding', 'Onboarding'],
+  ['/hr/offer-letters/new', 'Create Offer Letter'],
+  ['/hr/offer-letters', 'Offer Letters'],
+  ['/hr/employees/new', 'Add Employee'],
+  ['/hr/employees', 'Employee Management'],
+  ['/hr/dashboard', 'HR Dashboard'],
   ['/admin/payroll/profiles/new', 'Add Payroll Profile'],
   ['/admin/payroll/profiles', 'Payroll Profiles'],
   ['/admin/payroll/runs', 'Payroll Runs'],
@@ -51,7 +72,9 @@ const routeTitles: Array<[string, string]> = [
   ['/employee/leaves/apply', 'Apply Leave'],
   ['/employee/leaves', 'My Leaves'],
   ['/employee/policies/pending', 'Pending Acknowledgements'],
+  ['/employee/my-policies/pending', 'Pending Acknowledgements'],
   ['/employee/policies', 'My Policies'],
+  ['/employee/my-policies', 'My Policies'],
   ['/employee/attendance', 'My Attendance'],
   ['/employee/profile', 'My Profile'],
   ['/employee/leads/upload', 'Bulk Lead Upload'],
@@ -76,6 +99,14 @@ export function getPageTitle(pathname: string, user?: User | null, fallback = 'A
     return 'Sales & Marketing Dashboard';
   }
 
+  if (normalized === '/employee/dashboard' && isHRDepartment(user?.department)) {
+    return 'HR Dashboard';
+  }
+
+  if (normalized === '/hr/dashboard') {
+    return 'HR Dashboard';
+  }
+
   for (const [route, title] of routeTitles) {
     if (normalized === route || normalized.startsWith(`${route}/`)) {
       return title;
@@ -89,6 +120,21 @@ export function getPageTitle(pathname: string, user?: User | null, fallback = 'A
 }
 
 const routeSubtitles: Array<[string, string]> = [
+  ['/hr/dashboard', 'People operations, policies, leave, and attendance overview'],
+  ['/hr/employees', 'Employee records and company details'],
+  ['/hr/offer-letters', 'Offer letter generation and tracking'],
+  ['/hr/onboarding', 'New hire onboarding workflows'],
+  ['/hr/policies', 'Company policies and acknowledgements'],
+  ['/hr/policy-compliance', 'Policy acknowledgement tracking'],
+  ['/hr/policies/compliance', 'Policy acknowledgement tracking'],
+  ['/hr/leave-management', 'Review and manage leave requests'],
+  ['/hr/attendance', 'Track and monitor company attendance'],
+  ['/hr/company-settings', 'HR master data: departments, leave types, holidays, and categories'],
+  ['/hr/my-profile', 'Your employee profile and details'],
+  ['/hr/my-attendance', 'Your attendance history and check-ins'],
+  ['/hr/my-leaves', 'Your leave requests and balances'],
+  ['/hr/my-policies', 'Policies assigned to you'],
+  ['/hr/my-regularization', 'Request attendance corrections'],
   ['/admin/dashboard', 'Company-wide HRMS overview'],
   ['/admin/users', 'Manage system users and access'],
   ['/admin/employees', 'Employee records and lifecycle'],
@@ -129,6 +175,14 @@ export function getPageSubtitle(pathname: string, user?: User | null, fallback =
 
   if (normalized === '/employee/dashboard' && isSalesMarketingDepartment(user?.department)) {
     return 'Daily KPIs, leads, and sales workflow overview';
+  }
+
+  if (normalized === '/employee/dashboard' && isHRDepartment(user?.department)) {
+    return 'People operations, policies, leave, and attendance overview';
+  }
+
+  if (normalized === '/hr/dashboard') {
+    return 'People operations, policies, leave, and attendance overview';
   }
 
   for (const [route, subtitle] of routeSubtitles) {

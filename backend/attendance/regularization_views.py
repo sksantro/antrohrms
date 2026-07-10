@@ -82,6 +82,11 @@ class AttendanceRegularizationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
+        if not request.user.is_super_admin:
+            return Response(
+                {'detail': 'Only Super Admin can approve regularization requests.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         regularization = self.get_object()
         try:
             approve_regularization(regularization, request.user)
@@ -92,6 +97,11 @@ class AttendanceRegularizationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='reject')
     def reject(self, request, pk=None):
+        if not request.user.is_super_admin:
+            return Response(
+                {'detail': 'Only Super Admin can reject regularization requests.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         regularization = self.get_object()
         serializer = RegularizationRejectSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

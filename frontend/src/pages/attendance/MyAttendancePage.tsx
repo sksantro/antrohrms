@@ -7,7 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../services/api';
 import { attendanceService } from '../../services/attendanceService';
 import type { Attendance } from '../../types';
-import { getAttendanceBasePath } from '../../utils/rbac';
+import { getHrMyAttendanceBasePath } from '../../utils/rbac';
 
 export function MyAttendancePage() {
   const { user } = useAuth();
@@ -17,7 +17,7 @@ export function MyAttendancePage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const basePath = user ? getAttendanceBasePath(user.role) : '/employee/attendance';
+  const basePath = user ? getHrMyAttendanceBasePath(user.role, user.department) : '/employee/attendance';
 
   const loadData = async () => {
     setIsLoading(true);

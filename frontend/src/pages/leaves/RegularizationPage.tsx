@@ -5,11 +5,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../services/api';
 import { regularizationService } from '../../services/leaveService';
 import type { AttendanceRegularization } from '../../types';
-import { getLeavesBasePath } from '../../utils/rbac';
+import { getRegularizationPath } from '../../utils/rbac';
 
 export function RegularizationRequestPage() {
   const { user } = useAuth();
-  const basePath = user ? getLeavesBasePath(user.role) : '/employee/leaves';
+  const basePath = user ? getRegularizationPath(user.role, user.department) : '/employee/leaves/regularization';
   const [records, setRecords] = useState<AttendanceRegularization[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -105,7 +105,7 @@ export function RegularizationManagementPage() {
   const [records, setRecords] = useState<AttendanceRegularization[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const canAct = can('can_approve_leaves');
+  const canAct = can('can_manage_attendance');
 
   const load = async () => {
     try {

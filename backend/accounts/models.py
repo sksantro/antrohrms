@@ -49,7 +49,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     @property
     def is_hr_admin(self):
-        return self.role == self.Role.HR_ADMIN
+        from employees.hr_access import user_has_hr_access
+
+        return user_has_hr_access(self)
 
     @property
     def is_manager(self):

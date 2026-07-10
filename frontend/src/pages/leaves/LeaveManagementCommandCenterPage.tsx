@@ -42,7 +42,7 @@ function titleCase(value: string): string {
 
 export function LeaveManagementCommandCenterPage() {
   const { user, can } = useAuth();
-  const basePath = user ? getLeavesBasePath(user.role) : '/admin/leaves';
+  const basePath = user ? getLeavesBasePath(user.role, user.department) : '/admin/leaves';
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export function LeaveManagementCommandCenterPage() {
   const [search, setSearch] = useState('');
 
   const canApprove = can('can_approve_leaves');
-  const canHr = user?.role === 'SUPER_ADMIN' || user?.role === 'HR_ADMIN';
+  const canHr = can('can_view_all_leaves');
   const canManageBalances = can('can_manage_leave_balances');
   const showEmployee = true;
 

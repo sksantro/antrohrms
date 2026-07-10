@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 
 import { Table } from '../ui';
 import type { Employee } from '../../types';
+import { formatEmployeeDate } from '../../utils/employeeFilters';
 import { StatusBadge } from './StatusBadge';
 
 interface EmployeeTableProps {
@@ -18,6 +19,7 @@ export function EmployeeTable({
   isBasicView = false,
 }: EmployeeTableProps) {
   const rows = Array.isArray(employees) ? employees : [];
+  const columnCount = isBasicView ? 9 : 10;
 
   const getInitials = (employee: Employee) => {
     const source = employee.full_name ?? `${employee.first_name} ${employee.last_name}`;
@@ -33,12 +35,13 @@ export function EmployeeTable({
       <thead>
         <tr>
           <th>Employee Code</th>
-          <th>Name</th>
+          <th>Employee Name</th>
           <th>Email</th>
           <th>Phone</th>
           <th>Department</th>
           <th>Designation</th>
           {!isBasicView ? <th>Reporting Manager</th> : null}
+          <th>Joining Date</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -46,8 +49,11 @@ export function EmployeeTable({
       <tbody>
         {rows.length === 0 ? (
           <tr>
-            <td colSpan={isBasicView ? 8 : 9} className="employees-table__empty">
-              No employees found.
+            <td colSpan={columnCount} className="employees-table__empty">
+              <div className="employees-table__empty-state">
+                <strong>No employees found</strong>
+                <span>Try adjusting your search or filters.</span>
+              </div>
             </td>
           </tr>
         ) : (
@@ -74,9 +80,10 @@ export function EmployeeTable({
                 <td>
                   {employee.reporting_manager
                     ? `${employee.reporting_manager.first_name} ${employee.reporting_manager.last_name}`
-                    : employee.reporting_manager_name ?? '-'}
+                    : employee.reporting_manager_name ?? '—'}
                 </td>
               ) : null}
+              <td>{formatEmployeeDate(employee.joining_date)}</td>
               <td>
                 <StatusBadge status={employee.status} />
               </td>

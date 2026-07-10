@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../services/api';
 import { leaveService } from '../../services/leaveService';
 import type { HalfDaySession, LeaveApplyPayload, LeaveType } from '../../types';
-import { getLeavesBasePath } from '../../utils/rbac';
+import { getHrMyLeavesBasePath } from '../../utils/rbac';
 
 const leaveTypes: LeaveType[] = ['CASUAL', 'SICK', 'EMERGENCY', 'PLANNED', 'UNPAID'];
 const sessions: HalfDaySession[] = ['FIRST_HALF', 'SECOND_HALF'];
@@ -13,7 +13,7 @@ const sessions: HalfDaySession[] = ['FIRST_HALF', 'SECOND_HALF'];
 export function ApplyLeavePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const basePath = user ? getLeavesBasePath(user.role) : '/employee/leaves';
+  const basePath = user ? getHrMyLeavesBasePath(user.role, user.department) : '/employee/leaves';
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState<LeaveApplyPayload>({

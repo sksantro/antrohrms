@@ -26,7 +26,7 @@ export function LeaveRequestsPage({
 }: LeaveRequestsPageProps) {
   const { user, can } = useAuth();
   const location = useLocation();
-  const basePath = user ? getLeavesBasePath(user.role) : '/admin/leaves';
+  const basePath = user ? getLeavesBasePath(user.role, user.department) : '/admin/leaves';
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export function LeaveRequestsPage({
   });
 
   const canApprove = can('can_approve_leaves');
-  const canHr = user?.role === 'SUPER_ADMIN' || user?.role === 'HR_ADMIN';
+  const canHr = can('can_view_all_leaves');
   const showEmployee = can('can_view_all_leaves') || can('can_view_team_leaves') || user?.role === 'FINANCE';
 
   const loadData = async () => {

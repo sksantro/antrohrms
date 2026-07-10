@@ -56,7 +56,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         department = self.request.query_params.get('department')
         month = self.request.query_params.get('month')
         year = self.request.query_params.get('year')
+        date_filter = self.request.query_params.get('date')
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
         status_filter = self.request.query_params.get('status')
+        search = self.request.query_params.get('search', '').strip()
+        regularization_status = self.request.query_params.get('regularization_status', '').strip()
 
         if user.is_super_admin or user.is_hr_admin or user.is_finance:
             pass
@@ -81,8 +86,46 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(date__month=month)
         if year:
             queryset = queryset.filter(date__year=year)
-        if status_filter:
+        if date_filter:
+            queryset = queryset.filter(date=date_filter)
+        if date_from:
+            queryset = queryset.filter(date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(date__lte=date_to)
+        if status_filter == 'MISSING_PUNCH':
+            queryset = queryset.filter(
+                Q(status=Attendance.Status.MISSING_CHECKOUT)
+                | Q(check_in_time__isnull=False, check_out_time__isnull=True)
+            ).exclude(
+                status__in=[
+                    Attendance.Status.ON_LEAVE,
+                    Attendance.Status.HOLIDAY,
+                    Attendance.Status.ABSENT,
+                ]
+            )
+        elif status_filter:
             queryset = queryset.filter(status=status_filter)
+        if search:
+            queryset = queryset.filter(
+                Q(employee__first_name__icontains=search)
+                | Q(employee__last_name__icontains=search)
+                | Q(employee__email__icontains=search)
+                | Q(employee__employee_code__icontains=search)
+                | Q(employee__department__icontains=search)
+            )
+        if regularization_status:
+            from attendance.models import AttendanceRegularization
+            from django.db.models import Exists, OuterRef
+
+            queryset = queryset.annotate(
+                has_matching_regularization=Exists(
+                    AttendanceRegularization.objects.filter(
+                        employee_id=OuterRef('employee_id'),
+                        date=OuterRef('date'),
+                        status=regularization_status,
+                    )
+                )
+            ).filter(has_matching_regularization=True)
 
         return queryset
 
@@ -215,10 +258,20 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
         user = request.user
-        if user.role not in {User.Role.SUPER_ADMIN, User.Role.HR_ADMIN, User.Role.FINANCE}:
+        if not (user.is_super_admin or user.is_hr_admin or user.is_finance):
             return Response({'detail': 'Not permitted.'}, status=status.HTTP_403_FORBIDDEN)
 
         queryset = self.get_queryset()
+        missing_punch = queryset.filter(
+            Q(status=Attendance.Status.MISSING_CHECKOUT)
+            | Q(check_in_time__isnull=False, check_out_time__isnull=True)
+        ).exclude(
+            status__in=[
+                Attendance.Status.ON_LEAVE,
+                Attendance.Status.HOLIDAY,
+                Attendance.Status.ABSENT,
+            ]
+        ).count()
 
         data = {
             'total_records': queryset.count(),
@@ -228,6 +281,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             'half_day': queryset.filter(status=Attendance.Status.HALF_DAY).count(),
             'on_leave': queryset.filter(status=Attendance.Status.ON_LEAVE).count(),
             'holiday': queryset.filter(status=Attendance.Status.HOLIDAY).count(),
+            'missing_punch': missing_punch,
             'total_work_hours': queryset.aggregate(total=Sum('total_work_hours'))['total'] or 0,
             'total_late_minutes': queryset.aggregate(total=Sum('late_minutes'))['total'] or 0,
         }

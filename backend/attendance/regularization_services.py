@@ -31,14 +31,8 @@ def validate_regularization_date(reg_date: date, is_hr: bool):
 
 
 def can_approve_regularization(user, regularization):
-    if user.is_super_admin or user.is_hr_admin:
-        return True
-    if not user.is_manager:
-        return False
-    manager_profile = getattr(user, 'employee_profile', None)
-    if not manager_profile or regularization.employee_id == manager_profile.id:
-        return False
-    return regularization.employee.reporting_manager_id == manager_profile.id
+    # Regularization approval/rejection is Super Admin only.
+    return bool(user and user.is_authenticated and user.is_super_admin)
 
 
 @transaction.atomic

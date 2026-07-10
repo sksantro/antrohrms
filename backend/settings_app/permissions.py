@@ -28,3 +28,18 @@ class CompanyHolidayPermission(BasePermission):
         if request.method in SAFE_METHODS:
             return True
         return request.user.is_super_admin or request.user.is_hr_admin
+
+
+class HRMasterDataPermission(BasePermission):
+    """HR and Super Admin can manage HR master data (departments, designations, etc.)."""
+
+    message = 'You do not have permission to manage HR master data.'
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        return user.is_super_admin or user.is_hr_admin
+
+    def has_object_permission(self, request, view, obj):
+        return request.user.is_super_admin or request.user.is_hr_admin

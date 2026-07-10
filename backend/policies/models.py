@@ -20,13 +20,40 @@ class Policy(models.Model):
         ANTI_HARASSMENT = 'ANTI_HARASSMENT', 'Anti-Harassment Policy'
         OTHER = 'OTHER', 'Other'
 
+    class Status(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draft'
+        PUBLISHED = 'PUBLISHED', 'Published'
+        UNPUBLISHED = 'UNPUBLISHED', 'Unpublished'
+        ARCHIVED = 'ARCHIVED', 'Archived'
+
+    class AppliesTo(models.TextChoices):
+        ALL_EMPLOYEES = 'ALL_EMPLOYEES', 'All Employees'
+        DEPARTMENT = 'DEPARTMENT', 'Department-wise'
+        DESIGNATION = 'DESIGNATION', 'Designation-wise'
+        SPECIFIC_EMPLOYEES = 'SPECIFIC_EMPLOYEES', 'Specific Employees'
+
     title = models.CharField(max_length=255)
     category = models.CharField(max_length=30, choices=Category.choices)
     version = models.CharField(max_length=20)
     description = models.TextField(blank=True)
-    policy_file = models.FileField(upload_to='policies/')
+    policy_content = models.TextField(blank=True)
+    policy_file = models.FileField(upload_to='policies/', blank=True, null=True)
     effective_date = models.DateField()
-    is_active = models.BooleanField(default=True)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+    )
+    is_active = models.BooleanField(default=False)
+    applies_to = models.CharField(
+        max_length=30,
+        choices=AppliesTo.choices,
+        default=AppliesTo.ALL_EMPLOYEES,
+    )
+    applies_to_departments = models.JSONField(default=list, blank=True)
+    applies_to_designations = models.JSONField(default=list, blank=True)
+    applies_to_employees = models.JSONField(default=list, blank=True)
+    requires_acknowledgement = models.BooleanField(default=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -43,6 +70,10 @@ class Policy(models.Model):
 
     def __str__(self):
         return f'{self.title} v{self.version}'
+
+    def save(self, *args, **kwargs):
+        self.is_active = self.status == self.Status.PUBLISHED
+        super().save(*args, **kwargs)
 
     @property
     def created_by_name(self):
@@ -75,6 +106,7 @@ class PolicyAcknowledgement(models.Model):
     acknowledged_at = models.DateTimeField(null=True, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
+    confirmation_text = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

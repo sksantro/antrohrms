@@ -1,22 +1,33 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 
 import { AttendanceStatusBadge } from '../../components/attendance/AttendanceStatusBadge';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../services/api';
 import { attendanceService } from '../../services/attendanceService';
-import type { Attendance } from '../../types';
-import { formatTime, formatWorkMode, getAttendanceBasePath } from '../../utils/rbac';
+import type { Attendance, AttendanceStatus } from '../../types';
+import {
+  formatAttendanceStatus,
+  formatTime,
+  formatWorkMode,
+  getAttendanceBasePath,
+} from '../../utils/rbac';
 
 export function AttendanceDetailPage() {
   const { id } = useParams();
+  const location = useLocation();
   const { user, can } = useAuth();
   const [record, setRecord] = useState<Attendance | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const basePath = user ? getAttendanceBasePath(user.role) : '/admin/attendance';
-  const canManage = can('can_manage_attendance');
+  const isHrAttendanceRoute = location.pathname.startsWith('/hr/attendance');
+  const basePath = isHrAttendanceRoute
+    ? '/hr/attendance'
+    : user
+      ? getAttendanceBasePath(user.role, user.department)
+      : '/admin/attendance';
+  const canManage = can('can_manage_attendance') && !isHrAttendanceRoute;
 
   useEffect(() => {
     const load = async () => {
@@ -35,12 +46,16 @@ export function AttendanceDetailPage() {
   }, [id]);
 
   if (isLoading) {
-    return <section className="dashboard-card wide"><p>Loading...</p></section>;
+    return (
+      <section className="payroll-card">
+        <p className="muted">Loading attendance...</p>
+      </section>
+    );
   }
 
   if (error || !record) {
     return (
-      <section className="dashboard-card wide">
+      <section className="payroll-card">
         <p className="form-error">{error ?? 'Record not found.'}</p>
         <Link to={basePath}>Back</Link>
       </section>
@@ -48,11 +63,13 @@ export function AttendanceDetailPage() {
   }
 
   return (
-    <section className="dashboard-card wide">
+    <section className="payroll-card">
       <div className="page-toolbar">
         <div>
           <h2>Attendance Details</h2>
-          <p className="muted">{record.employee_name} — {record.date}</p>
+          <p className="muted">
+            {record.employee_name} — {record.date}
+          </p>
         </div>
         <div className="toolbar-actions">
           <Link to={basePath}>Back</Link>
@@ -67,7 +84,26 @@ export function AttendanceDetailPage() {
         <DetailItem label="Check In" value={formatTime(record.check_in_time)} />
         <DetailItem label="Check Out" value={formatTime(record.check_out_time)} />
         <DetailItem label="Work Mode" value={formatWorkMode(record.work_mode)} />
-        <DetailItem label="Status" value={<AttendanceStatusBadge status={record.status} />} />
+        <DetailItem
+          label="Status"
+          value={
+            <AttendanceStatusBadge
+              status={(record.display_status || record.status) as AttendanceStatus}
+            />
+          }
+        />
+        <DetailItem
+          label="Late Status"
+          value={record.late_status || (record.late_minutes > 0 ? 'Late' : '—')}
+        />
+        <DetailItem
+          label="Regularization Status"
+          value={
+            record.regularization_status
+              ? formatAttendanceStatus(record.regularization_status)
+              : '—'
+          }
+        />
         <DetailItem label="Total Hours" value={record.total_work_hours} />
         <DetailItem label="Late Minutes" value={String(record.late_minutes)} />
         <DetailItem label="Remarks" value={record.remarks || '-'} fullWidth />

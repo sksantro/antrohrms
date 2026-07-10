@@ -20,14 +20,13 @@ class AttendancePermission(BasePermission):
             return user.is_employee_user or user.is_manager
 
         if action == 'summary':
-            return user.role in {
-                User.Role.SUPER_ADMIN,
-                User.Role.HR_ADMIN,
-                User.Role.FINANCE,
-            }
+            return user.is_super_admin or user.is_hr_admin or user.is_finance
 
         if user.is_super_admin or user.is_hr_admin:
-            return True
+            # HR may view attendance records only; create/update gated by CanManageAttendance.
+            if request.method in SAFE_METHODS:
+                return True
+            return user.is_super_admin
 
         if action in ('list', 'retrieve') and request.method in SAFE_METHODS:
             return user.role in {User.Role.MANAGER, User.Role.FINANCE}
@@ -37,7 +36,10 @@ class AttendancePermission(BasePermission):
     def has_object_permission(self, request, view, obj):
         user = request.user
 
-        if user.is_super_admin or user.is_hr_admin:
+        if user.is_super_admin:
+            return True
+
+        if user.is_hr_admin and request.method in SAFE_METHODS:
             return True
 
         if user.is_finance and request.method in SAFE_METHODS:
@@ -57,8 +59,8 @@ class AttendancePermission(BasePermission):
 
 
 class CanManageAttendance(BasePermission):
-    message = 'HR admin or super admin access required.'
+    message = 'Super admin access required to create or edit attendance.'
 
     def has_permission(self, request, view):
         user = request.user
-        return bool(user and user.is_authenticated and (user.is_super_admin or user.is_hr_admin))
+        return bool(user and user.is_authenticated and user.is_super_admin)

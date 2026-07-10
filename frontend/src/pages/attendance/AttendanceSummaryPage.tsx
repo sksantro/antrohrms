@@ -23,7 +23,7 @@ export function AttendanceSummaryPage() {
     department: '',
   });
 
-  const basePath = user ? getAttendanceBasePath(user.role) : '/admin/attendance';
+  const basePath = user ? getAttendanceBasePath(user.role, user.department) : '/admin/attendance';
   const showListLink = can('can_view_all_attendance') || can('can_view_team_attendance');
 
   useEffect(() => {

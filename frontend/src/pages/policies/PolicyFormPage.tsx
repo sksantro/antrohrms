@@ -12,7 +12,8 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../services/api';
 import { policyService } from '../../services/policyService';
-import type { PolicyCategory, PolicyFormData } from '../../types';
+import type { PolicyAppliesTo, PolicyCategory, PolicyFormData, PolicyStatus } from '../../types';
+import { EMPLOYEE_DEPARTMENTS } from '../../types/employee';
 import { formatPolicyCategory, getPoliciesBasePath } from '../../utils/rbac';
 
 const categories: PolicyCategory[] = [
@@ -34,17 +35,37 @@ const emptyForm: PolicyFormData = {
   category: 'LEAVE_POLICY',
   version: '1.0',
   description: '',
+  policy_content: '',
   effective_date: new Date().toISOString().slice(0, 10),
-  is_active: true,
+  status: 'DRAFT',
+  applies_to: 'ALL_EMPLOYEES',
+  applies_to_departments: [],
+  applies_to_designations: [],
+  applies_to_employees: [],
+  requires_acknowledgement: true,
   policy_file: null,
 };
+
+const statusOptions: Array<{ value: PolicyStatus; label: string }> = [
+  { value: 'DRAFT', label: 'Draft' },
+  { value: 'PUBLISHED', label: 'Published' },
+  { value: 'UNPUBLISHED', label: 'Unpublished' },
+  { value: 'ARCHIVED', label: 'Archived' },
+];
+
+const appliesToOptions: Array<{ value: PolicyAppliesTo; label: string }> = [
+  { value: 'ALL_EMPLOYEES', label: 'All Employees' },
+  { value: 'DEPARTMENT', label: 'Department-wise' },
+  { value: 'DESIGNATION', label: 'Designation-wise' },
+  { value: 'SPECIFIC_EMPLOYEES', label: 'Specific Employees' },
+];
 
 export function PolicyFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const isEdit = Boolean(id);
-  const basePath = user ? getPoliciesBasePath(user.role) : '/admin/policies';
+  const basePath = user ? getPoliciesBasePath(user.role, user.department) : '/admin/policies';
   const [form, setForm] = useState<PolicyFormData>(emptyForm);
   const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,8 +82,14 @@ export function PolicyFormPage() {
           category: policy.category,
           version: policy.version,
           description: policy.description,
+          policy_content: policy.policy_content,
           effective_date: policy.effective_date,
-          is_active: policy.is_active,
+          status: policy.status,
+          applies_to: policy.applies_to,
+          applies_to_departments: policy.applies_to_departments ?? [],
+          applies_to_designations: policy.applies_to_designations ?? [],
+          applies_to_employees: policy.applies_to_employees ?? [],
+          requires_acknowledgement: policy.requires_acknowledgement,
           policy_file: null,
         });
         setExistingFileUrl(policy.policy_file_url);
@@ -99,6 +126,24 @@ export function PolicyFormPage() {
       setIsSubmitting(false);
     }
   };
+
+  const toggleDepartment = (department: string) => {
+    setForm((current) => {
+      const exists = current.applies_to_departments.includes(department);
+      return {
+        ...current,
+        applies_to_departments: exists
+          ? current.applies_to_departments.filter((item) => item !== department)
+          : [...current.applies_to_departments, department],
+      };
+    });
+  };
+
+  const parseNumberList = (value: string): number[] =>
+    value
+      .split(',')
+      .map((item) => Number(item.trim()))
+      .filter((item) => Number.isFinite(item) && item > 0);
 
   if (isLoading) {
     return (
@@ -171,13 +216,88 @@ export function PolicyFormPage() {
               <Select
                 id="status"
                 label="Status"
-                value={form.is_active ? 'active' : 'inactive'}
-                onChange={(e) => setForm({ ...form, is_active: e.target.value === 'active' })}
+                value={form.status}
+                onChange={(e) =>
+                  setForm({ ...form, status: e.target.value as PolicyStatus })
+                }
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                {statusOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                id="requires_acknowledgement"
+                label="Requires Acknowledgement"
+                value={form.requires_acknowledgement ? 'yes' : 'no'}
+                onChange={(e) =>
+                  setForm({ ...form, requires_acknowledgement: e.target.value === 'yes' })
+                }
+              >
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
               </Select>
             </div>
+          </FormSection>
+
+          <FormSection title="Applies To" icon={<DocIcon />}>
+            <div className="form-grid">
+              <Select
+                id="applies_to"
+                label="Target"
+                value={form.applies_to}
+                onChange={(event) =>
+                  setForm({ ...form, applies_to: event.target.value as PolicyAppliesTo })
+                }
+              >
+                {appliesToOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </Select>
+              {form.applies_to === 'DESIGNATION' ? (
+                <Input
+                  id="applies_to_designations"
+                  label="Designations (comma separated)"
+                  value={form.applies_to_designations.join(', ')}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      applies_to_designations: event.target.value
+                        .split(',')
+                        .map((item) => item.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                />
+              ) : null}
+              {form.applies_to === 'SPECIFIC_EMPLOYEES' ? (
+                <Input
+                  id="applies_to_employees"
+                  label="Employee IDs (comma separated)"
+                  value={form.applies_to_employees.join(', ')}
+                  onChange={(event) =>
+                    setForm({ ...form, applies_to_employees: parseNumberList(event.target.value) })
+                  }
+                />
+              ) : null}
+            </div>
+            {form.applies_to === 'DEPARTMENT' ? (
+              <div className="policy-department-grid">
+                {EMPLOYEE_DEPARTMENTS.map((department) => (
+                  <label key={department} className="policy-department-chip">
+                    <input
+                      type="checkbox"
+                      checked={form.applies_to_departments.includes(department)}
+                      onChange={() => toggleDepartment(department)}
+                    />
+                    <span>{department}</span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
           </FormSection>
 
           <FormSection title="Document Upload" icon={<UploadCloudIcon size={18} />}>
@@ -215,6 +335,13 @@ export function PolicyFormPage() {
               rows={5}
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+            <Textarea
+              id="policy_content"
+              label="Policy Content"
+              rows={8}
+              value={form.policy_content}
+              onChange={(e) => setForm({ ...form, policy_content: e.target.value })}
             />
           </FormSection>
 

@@ -103,8 +103,12 @@ class LeaveRequestViewSet(viewsets.ReadOnlyModelViewSet):
         status_filter = self.request.query_params.get('status')
         employee_id = self.request.query_params.get('employee')
         department = self.request.query_params.get('department')
+        leave_type = self.request.query_params.get('leave_type')
         month = self.request.query_params.get('month')
         year = self.request.query_params.get('year')
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        search = self.request.query_params.get('search', '').strip()
         escalated = self.request.query_params.get('escalated')
         special = self.request.query_params.get('special_approval')
 
@@ -131,10 +135,24 @@ class LeaveRequestViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(employee_id=employee_id)
         if department:
             queryset = queryset.filter(employee__department__iexact=department)
+        if leave_type:
+            queryset = queryset.filter(leave_type=leave_type)
         if month:
             queryset = queryset.filter(start_date__month=month)
         if year:
             queryset = queryset.filter(start_date__year=year)
+        if date_from:
+            queryset = queryset.filter(end_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(start_date__lte=date_to)
+        if search:
+            queryset = queryset.filter(
+                Q(employee__first_name__icontains=search)
+                | Q(employee__last_name__icontains=search)
+                | Q(employee__email__icontains=search)
+                | Q(employee__employee_code__icontains=search)
+                | Q(employee__department__icontains=search)
+            )
         if escalated == 'true':
             queryset = queryset.filter(escalated_to_hr=True)
         if special == 'true':

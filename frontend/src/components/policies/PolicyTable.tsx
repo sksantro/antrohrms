@@ -9,10 +9,19 @@ interface PolicyTableProps {
   policies: Policy[];
   basePath: string;
   canManage?: boolean;
-  onDeactivate?: (id: number) => void;
+  onPublish?: (id: number) => void;
+  onUnpublish?: (id: number) => void;
+  onArchive?: (id: number) => void;
 }
 
-export function PolicyTable({ policies, basePath, canManage = false, onDeactivate }: PolicyTableProps) {
+export function PolicyTable({
+  policies,
+  basePath,
+  canManage = false,
+  onPublish,
+  onUnpublish,
+  onArchive,
+}: PolicyTableProps) {
   if (!policies.length) {
     return (
       <div className="cc-empty">
@@ -29,12 +38,15 @@ export function PolicyTable({ policies, basePath, canManage = false, onDeactivat
     <Table className="payroll-table">
       <thead>
         <tr>
-          <th>Policy</th>
+          <th>Policy Title</th>
           <th>Category</th>
           <th>Version</th>
+          <th>Applies To</th>
           <th>Effective Date</th>
           <th>Status</th>
+          <th>Requires Ack</th>
           <th>Created By</th>
+          <th>Updated Date</th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -52,13 +64,26 @@ export function PolicyTable({ policies, basePath, canManage = false, onDeactivat
             <td>
               <span className="pol-version-pill">v{policy.version}</span>
             </td>
+            <td>{policy.applies_to_label}</td>
             <td>{policy.effective_date}</td>
             <td>
-              <Badge variant={policy.is_active ? 'success' : 'danger'}>
-                {policy.is_active ? 'Active' : 'Inactive'}
+              <Badge
+                variant={
+                  policy.status === 'PUBLISHED'
+                    ? 'success'
+                    : policy.status === 'DRAFT'
+                      ? 'warning'
+                      : policy.status === 'UNPUBLISHED'
+                        ? 'danger'
+                        : 'info'
+                }
+              >
+                {policy.status_label}
               </Badge>
             </td>
+            <td>{policy.requires_acknowledgement ? 'Yes' : 'No'}</td>
             <td>{policy.created_by_name || '-'}</td>
+            <td>{new Date(policy.updated_at).toLocaleDateString('en-IN')}</td>
             <td>
               <div className="table-actions">
                 <Link to={`${basePath}/${policy.id}`} className="payroll-action">
@@ -69,13 +94,34 @@ export function PolicyTable({ policies, basePath, canManage = false, onDeactivat
                     Edit
                   </Link>
                 ) : null}
-                {canManage && policy.is_active && onDeactivate ? (
+                {canManage && policy.status === 'DRAFT' && onPublish ? (
+                  <button
+                    type="button"
+                    className="payroll-action"
+                    onClick={() => onPublish(policy.id)}
+                  >
+                    Publish
+                  </button>
+                ) : null}
+                {canManage && policy.status === 'PUBLISHED' && onUnpublish ? (
                   <button
                     type="button"
                     className="payroll-action payroll-action--danger"
-                    onClick={() => onDeactivate(policy.id)}
+                    onClick={() => onUnpublish(policy.id)}
                   >
-                    Deactivate
+                    Unpublish
+                  </button>
+                ) : null}
+                {canManage &&
+                policy.status !== 'ARCHIVED' &&
+                policy.status !== 'PUBLISHED' &&
+                onArchive ? (
+                  <button
+                    type="button"
+                    className="payroll-action payroll-action--danger"
+                    onClick={() => onArchive(policy.id)}
+                  >
+                    Archive
                   </button>
                 ) : null}
               </div>

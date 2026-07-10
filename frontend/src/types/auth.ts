@@ -61,6 +61,22 @@ export interface CreateUserPayload {
 }
 
 export type PermissionKey =
+  | 'can_access_hr_workspace'
+  | 'can_view_hr_dashboard'
+  | 'can_manage_hr_employees'
+  | 'can_view_hr_offer_letters'
+  | 'can_manage_hr_offer_letters'
+  | 'can_view_hr_onboarding'
+  | 'can_manage_hr_onboarding'
+  | 'can_view_hr_employees'
+  | 'can_view_hr_attendance'
+  | 'can_view_hr_leave_management'
+  | 'can_view_hr_policies'
+  | 'can_manage_hr_policies'
+  | 'can_view_hr_policy_compliance'
+  | 'can_view_hr_my_profile'
+  | 'can_view_hr_company_settings'
+  | 'can_manage_hr_company_settings'
   | 'can_manage_users'
   | 'can_manage_employees'
   | 'can_view_employees'

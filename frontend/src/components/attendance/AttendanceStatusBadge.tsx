@@ -12,8 +12,14 @@ const statusVariantMap: Record<
   LATE: 'warning',
   ON_LEAVE: 'info',
   HOLIDAY: 'neutral',
+  MISSING_CHECKOUT: 'warning',
+  MISSING_PUNCH: 'warning',
 };
 
 export function AttendanceStatusBadge({ status }: { status: AttendanceStatus }) {
-  return <Badge variant={statusVariantMap[status]}>{formatAttendanceStatus(status)}</Badge>;
+  return (
+    <Badge variant={statusVariantMap[status] ?? 'neutral'}>
+      {formatAttendanceStatus(status)}
+    </Badge>
+  );
 }

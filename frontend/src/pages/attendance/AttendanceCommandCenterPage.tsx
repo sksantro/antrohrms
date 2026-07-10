@@ -70,10 +70,10 @@ export function AttendanceCommandCenterPage() {
     department: '',
   });
 
-  const basePath = user ? getAttendanceBasePath(user.role) : '/admin/attendance';
+  const basePath = user ? getAttendanceBasePath(user.role, user.department) : '/admin/attendance';
   const canManage = can('can_manage_attendance');
   const showEmployee = can('can_view_all_attendance') || can('can_view_team_attendance');
-  const canActRegularization = can('can_approve_leaves');
+  const canActRegularization = can('can_manage_attendance');
 
   useEffect(() => {
     let active = true;

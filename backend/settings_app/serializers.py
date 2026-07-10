@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from settings_app.models import CompanyHoliday, CompanySettings
+from settings_app.models import (
+    CompanyHoliday,
+    CompanySettings,
+    DepartmentMaster,
+    DesignationMaster,
+    LeaveTypeMaster,
+    PolicyCategoryMaster,
+)
 
 WEEKDAY_LABELS = [
     ('Monday', 0),
@@ -121,3 +128,138 @@ class CompanyHolidaySerializer(serializers.ModelSerializer):
 
     def get_is_optional(self, obj):
         return obj.holiday_type == CompanyHoliday.HolidayType.OPTIONAL_HOLIDAY
+
+
+class DepartmentMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DepartmentMaster
+        fields = (
+            'id',
+            'name',
+            'description',
+            'is_active',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def validate_name(self, value):
+        name = (value or '').strip()
+        if not name:
+            raise serializers.ValidationError('Department name is required.')
+        queryset = DepartmentMaster.objects.filter(name__iexact=name)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError('A department with this name already exists.')
+        return name
+
+
+class DesignationMasterSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source='department.name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = DesignationMaster
+        fields = (
+            'id',
+            'name',
+            'department',
+            'department_name',
+            'description',
+            'is_active',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = ('id', 'department_name', 'created_at', 'updated_at')
+
+    def validate_name(self, value):
+        name = (value or '').strip()
+        if not name:
+            raise serializers.ValidationError('Designation name is required.')
+        queryset = DesignationMaster.objects.filter(name__iexact=name)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError('A designation with this name already exists.')
+        return name
+
+
+class LeaveTypeMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LeaveTypeMaster
+        fields = (
+            'id',
+            'code',
+            'name',
+            'annual_quota',
+            'is_paid',
+            'description',
+            'is_active',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def validate_code(self, value):
+        code = (value or '').strip().upper().replace(' ', '_')
+        if not code:
+            raise serializers.ValidationError('Leave type code is required.')
+        queryset = LeaveTypeMaster.objects.filter(code__iexact=code)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError('A leave type with this code already exists.')
+        return code
+
+    def validate_name(self, value):
+        name = (value or '').strip()
+        if not name:
+            raise serializers.ValidationError('Leave type name is required.')
+        queryset = LeaveTypeMaster.objects.filter(name__iexact=name)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError('A leave type with this name already exists.')
+        return name
+
+    def validate_annual_quota(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError('Annual quota cannot be negative.')
+        return value
+
+
+class PolicyCategoryMasterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PolicyCategoryMaster
+        fields = (
+            'id',
+            'code',
+            'name',
+            'description',
+            'is_active',
+            'created_at',
+            'updated_at',
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def validate_code(self, value):
+        code = (value or '').strip().upper().replace(' ', '_')
+        if not code:
+            raise serializers.ValidationError('Category code is required.')
+        queryset = PolicyCategoryMaster.objects.filter(code__iexact=code)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError('A policy category with this code already exists.')
+        return code
+
+    def validate_name(self, value):
+        name = (value or '').strip()
+        if not name:
+            raise serializers.ValidationError('Category name is required.')
+        queryset = PolicyCategoryMaster.objects.filter(name__iexact=name)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError('A policy category with this name already exists.')
+        return name

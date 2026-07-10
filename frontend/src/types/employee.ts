@@ -1,5 +1,7 @@
 import type { UserRole } from './auth';
 
+export const HR_DEPARTMENT = 'HR' as const;
+
 export const EMPLOYEE_DEPARTMENTS = [
   'Sales & Marketing',
   'HR',
@@ -72,6 +74,7 @@ export interface EmployeeFormData {
   address: string;
   emergency_contact_name: string;
   emergency_contact_phone: string;
+  employee_code?: string;
   user_role?: UserRole;
 }
 
@@ -93,5 +96,6 @@ export const emptyEmployeeForm: EmployeeFormData = {
   address: '',
   emergency_contact_name: '',
   emergency_contact_phone: '',
+  employee_code: '',
   user_role: 'EMPLOYEE',
 };

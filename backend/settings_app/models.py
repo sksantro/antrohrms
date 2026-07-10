@@ -90,3 +90,78 @@ class CompanyHoliday(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.date})'
+
+
+class DepartmentMaster(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('name',)
+        verbose_name = 'Department'
+        verbose_name_plural = 'Departments'
+
+    def __str__(self):
+        return self.name
+
+
+class DesignationMaster(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    department = models.ForeignKey(
+        DepartmentMaster,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='designations',
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('name',)
+        verbose_name = 'Designation'
+        verbose_name_plural = 'Designations'
+
+    def __str__(self):
+        return self.name
+
+
+class LeaveTypeMaster(models.Model):
+    code = models.CharField(max_length=30, unique=True)
+    name = models.CharField(max_length=100)
+    annual_quota = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    is_paid = models.BooleanField(default=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('name',)
+        verbose_name = 'Leave Type'
+        verbose_name_plural = 'Leave Types'
+
+    def __str__(self):
+        return self.name
+
+
+class PolicyCategoryMaster(models.Model):
+    code = models.CharField(max_length=40, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('name',)
+        verbose_name = 'Policy Category'
+        verbose_name_plural = 'Policy Categories'
+
+    def __str__(self):
+        return self.name

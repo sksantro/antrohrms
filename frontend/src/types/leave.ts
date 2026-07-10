@@ -28,6 +28,9 @@ export interface LeaveRequest {
   employee: number;
   employee_code: string;
   employee_name: string;
+  employee_email: string;
+  employee_department: string;
+  employee_designation: string;
   leave_type: LeaveType;
   start_date: string;
   end_date: string;
@@ -59,8 +62,12 @@ export interface LeaveRequestFilters {
   status?: LeaveRequestStatus | '';
   employee?: number | '';
   department?: string;
+  leave_type?: LeaveType | '';
   month?: number | '';
   year?: number | '';
+  date_from?: string;
+  date_to?: string;
+  search?: string;
   escalated?: boolean;
   special_approval?: boolean;
 }

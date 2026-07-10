@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from accounts.models import Notification, User
 from attendance.models import Attendance
+from employees.hr_access import get_hr_users
 from leaves.models import LeaveRequest
 from leaves.services.accrual import extend_internship, get_leave_balance, sync_leave_accrual
 from leaves.services.notifications import (
@@ -322,7 +323,7 @@ def request_leave_cancellation(leave_request):
         raise ValueError('Only approved leave can request cancellation.')
     leave_request.status = LeaveRequest.Status.CANCELLATION_REQUESTED
     leave_request.save()
-    hr_users = User.objects.filter(role__in=[User.Role.HR_ADMIN, User.Role.SUPER_ADMIN], is_active=True)
+    hr_users = get_hr_users()
     for hr in hr_users:
         notify_user(
             hr,

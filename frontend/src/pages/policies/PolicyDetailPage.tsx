@@ -20,7 +20,7 @@ import { formatPolicyCategory, getPoliciesBasePath } from '../../utils/rbac';
 export function PolicyDetailPage() {
   const { id } = useParams();
   const { user, can } = useAuth();
-  const basePath = user ? getPoliciesBasePath(user.role) : '/admin/policies';
+  const basePath = user ? getPoliciesBasePath(user.role, user.department) : '/admin/policies';
   const canManage = can('can_manage_policies');
   const canAcknowledge = can('can_acknowledge_policies');
   const [policy, setPolicy] = useState<Policy | null>(null);
@@ -28,6 +28,8 @@ export function PolicyDetailPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAckConfirm, setShowAckConfirm] = useState(false);
+  const [ackChecked, setAckChecked] = useState(false);
 
   const loadPolicy = async () => {
     if (!id) return;
@@ -52,11 +54,31 @@ export function PolicyDetailPage() {
     setSuccess(null);
     setIsSubmitting(true);
     try {
-      await policyService.acknowledge(Number(id));
+      await policyService.acknowledge(
+        Number(id),
+        'I have read and understood this company policy.',
+      );
       setSuccess('Policy acknowledged successfully.');
+      setShowAckConfirm(false);
+      setAckChecked(false);
       await loadPolicy();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to acknowledge policy.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const runStatusAction = async (message: string, action: () => Promise<Policy>) => {
+    setError(null);
+    setSuccess(null);
+    setIsSubmitting(true);
+    try {
+      const updated = await action();
+      setPolicy(updated);
+      setSuccess(message);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Unable to update policy status.');
     } finally {
       setIsSubmitting(false);
     }
@@ -92,8 +114,18 @@ export function PolicyDetailPage() {
           <div className="payroll-header__text">
             <div className="payroll-header__title-row">
               <h2 className="payroll-title">{policy.title}</h2>
-              <Badge variant={policy.is_active ? 'success' : 'danger'}>
-                {policy.is_active ? 'Active' : 'Inactive'}
+              <Badge
+                variant={
+                  policy.status === 'PUBLISHED'
+                    ? 'success'
+                    : policy.status === 'DRAFT'
+                      ? 'warning'
+                      : policy.status === 'UNPUBLISHED'
+                        ? 'danger'
+                        : 'info'
+                }
+              >
+                {policy.status_label}
               </Badge>
             </div>
             <p className="payroll-subtitle">
@@ -110,6 +142,45 @@ export function PolicyDetailPage() {
                 Edit
               </Link>
             ) : null}
+            {canManage && policy.status === 'DRAFT' ? (
+              <button
+                type="button"
+                className="payroll-action"
+                disabled={isSubmitting}
+                onClick={() => {
+                  if (!window.confirm('Publish this policy?')) return;
+                  void runStatusAction('Policy published.', () => policyService.publish(policy.id));
+                }}
+              >
+                Publish
+              </button>
+            ) : null}
+            {canManage && policy.status === 'PUBLISHED' ? (
+              <button
+                type="button"
+                className="payroll-action payroll-action--danger"
+                disabled={isSubmitting}
+                onClick={() => {
+                  if (!window.confirm('Unpublish this policy?')) return;
+                  void runStatusAction('Policy unpublished.', () => policyService.unpublish(policy.id));
+                }}
+              >
+                Unpublish
+              </button>
+            ) : null}
+            {canManage && policy.status !== 'ARCHIVED' && policy.status !== 'PUBLISHED' ? (
+              <button
+                type="button"
+                className="payroll-action payroll-action--danger"
+                disabled={isSubmitting}
+                onClick={() => {
+                  if (!window.confirm('Archive this policy?')) return;
+                  void runStatusAction('Policy archived.', () => policyService.archive(policy.id));
+                }}
+              >
+                Archive
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -121,10 +192,25 @@ export function PolicyDetailPage() {
           <DetailItem
             label="Status"
             value={
-              <Badge variant={policy.is_active ? 'success' : 'danger'}>
-                {policy.is_active ? 'Active' : 'Inactive'}
+              <Badge
+                variant={
+                  policy.status === 'PUBLISHED'
+                    ? 'success'
+                    : policy.status === 'DRAFT'
+                      ? 'warning'
+                      : policy.status === 'UNPUBLISHED'
+                        ? 'danger'
+                        : 'info'
+                }
+              >
+                {policy.status_label}
               </Badge>
             }
+          />
+          <DetailItem label="Applies To" value={policy.applies_to_label} />
+          <DetailItem
+            label="Requires Acknowledgement"
+            value={policy.requires_acknowledgement ? 'Yes' : 'No'}
           />
           {policy.acknowledgement_status ? (
             <DetailItem
@@ -159,6 +245,9 @@ export function PolicyDetailPage() {
             <h3 className="payroll-detail-section__title">Description</h3>
           </div>
           <p className="pol-description">{policy.description || 'No description provided.'}</p>
+          {policy.policy_content ? (
+            <pre className="pol-content-preview">{policy.policy_content}</pre>
+          ) : null}
         </section>
 
         {policy.policy_file_url ? (
@@ -177,11 +266,44 @@ export function PolicyDetailPage() {
           </a>
         ) : null}
 
-        {canAcknowledge && policy.is_active && isPending ? (
+        {canAcknowledge && policy.status === 'PUBLISHED' && policy.requires_acknowledgement && isPending ? (
           <div className="pol-ack-bar">
-            <Button type="button" disabled={isSubmitting} onClick={() => void handleAcknowledge()}>
-              {isSubmitting ? 'Submitting...' : 'I Agree / Acknowledge'}
-            </Button>
+            {!showAckConfirm ? (
+              <Button type="button" disabled={isSubmitting} onClick={() => setShowAckConfirm(true)}>
+                I Agree / Acknowledge
+              </Button>
+            ) : (
+              <div className="pol-ack-confirm">
+                <label className="pol-ack-confirm__check">
+                  <input
+                    type="checkbox"
+                    checked={ackChecked}
+                    onChange={(event) => setAckChecked(event.target.checked)}
+                  />
+                  <span>I have read and understood this company policy.</span>
+                </label>
+                <div className="pol-ack-confirm__actions">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setShowAckConfirm(false);
+                      setAckChecked(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={isSubmitting || !ackChecked}
+                    onClick={() => void handleAcknowledge()}
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Confirm Acknowledgement'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       </section>

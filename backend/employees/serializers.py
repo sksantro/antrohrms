@@ -1,9 +1,13 @@
-from django.db import transaction
+import re
+
+from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
 from accounts.models import User
 from accounts.utils import generate_temporary_password
 from employees.models import Employee
+
+EMPLOYEE_CODE_PATTERN = re.compile(r'^ANT-EMP-\d+$', re.IGNORECASE)
 
 
 class ReportingManagerSerializer(serializers.ModelSerializer):
@@ -77,6 +81,21 @@ class EmployeeSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'employee_code', 'created_at', 'updated_at')
 
 
+def _raise_integrity_validation_error(exc: IntegrityError) -> None:
+    message = str(exc).lower()
+    if 'email' in message:
+        raise serializers.ValidationError(
+            {'email': ['An employee with this email already exists.']},
+        ) from exc
+    if 'employee_code' in message:
+        raise serializers.ValidationError(
+            {'employee_code': ['An employee with this employee code already exists.']},
+        ) from exc
+    raise serializers.ValidationError(
+        'Unable to save employee. Please check the provided details.',
+    ) from exc
+
+
 class EmployeeCreateSerializer(serializers.ModelSerializer):
     reporting_manager_id = serializers.PrimaryKeyRelatedField(
         queryset=Employee.objects.all(),
@@ -89,6 +108,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         default=User.Role.EMPLOYEE,
         write_only=True,
     )
+    employee_code = serializers.CharField(required=False, allow_blank=True, max_length=20)
 
     class Meta:
         model = Employee
@@ -111,7 +131,20 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
             'emergency_contact_name',
             'emergency_contact_phone',
             'user_role',
+            'employee_code',
         )
+
+    def validate_employee_code(self, value):
+        code = (value or '').strip().upper()
+        if not code:
+            return ''
+        if not EMPLOYEE_CODE_PATTERN.match(code):
+            raise serializers.ValidationError(
+                'Employee code must follow the format ANT-EMP-0001.',
+            )
+        if Employee.objects.filter(employee_code__iexact=code).exists():
+            raise serializers.ValidationError('An employee with this employee code already exists.')
+        return code
 
     def validate_email(self, value):
         email = value.lower().strip()
@@ -134,6 +167,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         user_role = validated_data.pop('user_role', User.Role.EMPLOYEE)
+        employee_code = validated_data.pop('employee_code', '') or ''
         full_name = f"{validated_data['first_name']} {validated_data['last_name']}".strip()
         employee_code = Employee.generate_employee_code()
         temporary_password = generate_temporary_password()
@@ -147,11 +181,20 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
             must_change_password=True,
         )
 
-        employee = Employee.objects.create(
-            user=user,
-            employee_code=employee_code,
-            **validated_data,
-        )
+        try:
+            if employee_code:
+                employee = Employee.objects.create(
+                    user=user,
+                    employee_code=employee_code,
+                    **validated_data,
+                )
+            else:
+                employee = Employee(user=user, **validated_data)
+                employee.save()
+        except IntegrityError as exc:
+            user.delete()
+            _raise_integrity_validation_error(exc)
+
         employee.temporary_password = temporary_password
         return employee
 

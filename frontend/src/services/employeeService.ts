@@ -24,6 +24,10 @@ function toPayload(data: EmployeeFormData, isCreate: boolean) {
   if (isCreate) {
     payload.email = data.email;
     payload.user_role = data.user_role ?? 'EMPLOYEE';
+    const employeeCode = data.employee_code?.trim();
+    if (employeeCode) {
+      payload.employee_code = employeeCode.toUpperCase();
+    }
   }
 
   return payload;

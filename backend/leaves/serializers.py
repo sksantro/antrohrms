@@ -42,6 +42,9 @@ class LeaveBalanceUpdateSerializer(serializers.ModelSerializer):
 class LeaveRequestSerializer(serializers.ModelSerializer):
     employee_code = serializers.CharField(read_only=True)
     employee_name = serializers.CharField(read_only=True)
+    employee_email = serializers.EmailField(source='employee.email', read_only=True)
+    employee_department = serializers.CharField(source='employee.department', read_only=True)
+    employee_designation = serializers.CharField(source='employee.designation', read_only=True)
     approved_by_name = serializers.CharField(read_only=True)
     rejected_by_name = serializers.CharField(read_only=True)
     pending_days = serializers.SerializerMethodField()
@@ -53,6 +56,9 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             'employee',
             'employee_code',
             'employee_name',
+            'employee_email',
+            'employee_department',
+            'employee_designation',
             'leave_type',
             'start_date',
             'end_date',

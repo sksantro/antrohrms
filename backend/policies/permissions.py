@@ -1,6 +1,8 @@
 from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 from accounts.models import User
+from policies.models import Policy
+from policies.services import is_policy_assigned_to_employee
 
 
 class PolicyPermission(BasePermission):
@@ -45,12 +47,17 @@ class PolicyPermission(BasePermission):
 
         if action == 'acknowledge':
             profile = getattr(user, 'employee_profile', None)
-            return profile and obj.is_active
+            return profile and obj.status == Policy.Status.PUBLISHED and is_policy_assigned_to_employee(obj, profile)
 
         if user.is_finance and request.method in SAFE_METHODS:
             return True
 
         if request.method in SAFE_METHODS:
+            if obj.status != Policy.Status.PUBLISHED and user.is_employee_user:
+                return False
+            if user.is_employee_user:
+                profile = getattr(user, 'employee_profile', None)
+                return bool(profile and is_policy_assigned_to_employee(obj, profile))
             if not obj.is_active and not (user.is_super_admin or user.is_hr_admin):
                 return False
             return True

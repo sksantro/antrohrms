@@ -109,7 +109,7 @@ export function AppHeader({ onLogout }: AppHeaderProps) {
             </span>
             <span className="app-header-profile-meta">
               <span className="app-header-profile-name">{getUserDisplayName(user)}</span>
-              {user ? <span className="app-header-profile-role">{formatRole(user.role)}</span> : null}
+              {user ? <span className="app-header-profile-role">{formatRole(user.role, user.department)}</span> : null}
             </span>
             <span className="app-header-profile-chevron" aria-hidden>
               <ChevronDownIcon />
@@ -120,7 +120,9 @@ export function AppHeader({ onLogout }: AppHeaderProps) {
             <div className="app-header-profile-menu" role="menu">
               <div className="app-header-profile-menu-head">
                 <span className="app-header-profile-menu-name">{getUserDisplayName(user)}</span>
-                {user ? <span className="app-header-profile-menu-role">{formatRole(user.role)}</span> : null}
+                {user ? (
+                  <span className="app-header-profile-menu-role">{formatRole(user.role, user.department)}</span>
+                ) : null}
               </div>
               <button type="button" className="app-header-profile-menu-item" role="menuitem" onClick={handleLogout}>
                 <LogoutIcon />

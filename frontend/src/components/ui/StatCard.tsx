@@ -7,9 +7,10 @@ interface StatCardProps {
   hint?: string;
   to?: string;
   accent?: boolean;
+  className?: string;
 }
 
-export function StatCard({ label, value, hint, to, accent = false }: StatCardProps) {
+export function StatCard({ label, value, hint, to, accent = false, className = '' }: StatCardProps) {
   const content = (
     <>
       <span className="ui-stat-label">{label}</span>
@@ -18,15 +19,19 @@ export function StatCard({ label, value, hint, to, accent = false }: StatCardPro
     </>
   );
 
+  const cardClassName = ['ui-stat-card', className, accent ? 'ui-stat-card--accent' : '']
+    .filter(Boolean)
+    .join(' ');
+
   if (to) {
     return (
-      <Link to={to} className={`ui-stat-card ui-stat-card--link ${accent ? 'ui-stat-card--accent' : ''}`}>
+      <Link to={to} className={`${cardClassName} ui-stat-card--link`}>
         {content}
       </Link>
     );
   }
 
-  return <article className={`ui-stat-card ${accent ? 'ui-stat-card--accent' : ''}`}>{content}</article>;
+  return <article className={cardClassName}>{content}</article>;
 }
 
 export function StatGrid({ children }: { children: ReactNode }) {

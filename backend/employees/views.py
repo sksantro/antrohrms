@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,6 +12,7 @@ from employees.serializers import (
     EmployeeCreateSerializer,
     EmployeeSerializer,
     EmployeeUpdateSerializer,
+    _raise_integrity_validation_error,
 )
 
 
@@ -57,7 +58,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        employee = serializer.save()
+        try:
+            employee = serializer.save()
+        except IntegrityError as exc:
+            _raise_integrity_validation_error(exc)
         response_data = EmployeeSerializer(employee).data
         response_data['temporary_password'] = getattr(employee, 'temporary_password', None)
         return Response(response_data, status=status.HTTP_201_CREATED)

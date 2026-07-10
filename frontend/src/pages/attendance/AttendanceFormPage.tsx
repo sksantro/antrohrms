@@ -24,7 +24,7 @@ export function AttendanceFormPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isEdit = Boolean(id);
-  const basePath = user ? getAttendanceBasePath(user.role) : '/admin/attendance';
+  const basePath = user ? getAttendanceBasePath(user.role, user.department) : '/admin/attendance';
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [error, setError] = useState<string | null>(null);

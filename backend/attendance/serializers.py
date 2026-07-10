@@ -15,7 +15,11 @@ from employees.models import Employee
 class AttendanceSerializer(serializers.ModelSerializer):
     employee_code = serializers.CharField(read_only=True)
     employee_name = serializers.CharField(read_only=True)
+    employee_email = serializers.EmailField(source='employee.email', read_only=True)
     department = serializers.CharField(read_only=True)
+    regularization_status = serializers.SerializerMethodField()
+    late_status = serializers.SerializerMethodField()
+    display_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Attendance
@@ -24,12 +28,16 @@ class AttendanceSerializer(serializers.ModelSerializer):
             'employee',
             'employee_code',
             'employee_name',
+            'employee_email',
             'department',
             'date',
             'check_in_time',
             'check_out_time',
             'work_mode',
             'status',
+            'display_status',
+            'late_status',
+            'regularization_status',
             'total_work_hours',
             'late_minutes',
             'remarks',
@@ -44,12 +52,47 @@ class AttendanceSerializer(serializers.ModelSerializer):
             'id',
             'employee_code',
             'employee_name',
+            'employee_email',
             'department',
+            'display_status',
+            'late_status',
+            'regularization_status',
             'total_work_hours',
             'late_minutes',
             'created_at',
             'updated_at',
         )
+
+    def get_regularization_status(self, obj):
+        from attendance.models import AttendanceRegularization
+
+        regularization = (
+            AttendanceRegularization.objects.filter(employee_id=obj.employee_id, date=obj.date)
+            .order_by('-created_at')
+            .first()
+        )
+        return regularization.status if regularization else None
+
+    def get_late_status(self, obj):
+        if obj.status == Attendance.Status.LATE or obj.late_minutes > 0:
+            return 'Late'
+        if obj.check_in_time:
+            return 'On Time'
+        return '—'
+
+    def get_display_status(self, obj):
+        if obj.status == Attendance.Status.MISSING_CHECKOUT or (
+            obj.check_in_time
+            and not obj.check_out_time
+            and obj.status
+            not in {
+                Attendance.Status.ON_LEAVE,
+                Attendance.Status.HOLIDAY,
+                Attendance.Status.ABSENT,
+            }
+        ):
+            return 'MISSING_PUNCH'
+        return obj.status
 
 
 class AttendanceCreateUpdateSerializer(serializers.ModelSerializer):
@@ -194,5 +237,6 @@ class AttendanceSummarySerializer(serializers.Serializer):
     half_day = serializers.IntegerField()
     on_leave = serializers.IntegerField()
     holiday = serializers.IntegerField()
+    missing_punch = serializers.IntegerField()
     total_work_hours = serializers.DecimalField(max_digits=10, decimal_places=2)
     total_late_minutes = serializers.IntegerField()

@@ -44,17 +44,23 @@ import { LeadListPage } from '../pages/leads/LeadListPage';
 import { SalesCommandCenterPage } from '../pages/sales/SalesCommandCenterPage';
 import { SalesEmployeeDetailPage } from '../pages/sales/SalesEmployeeDetailPage';
 import { LoginPage } from '../pages/LoginPage';
+import { OfferAcceptancePage } from '../pages/offer/OfferAcceptancePage';
+import { OnboardingPortalPage } from '../pages/onboarding/OnboardingPortalPage';
 import { ManagerDashboardPage } from '../pages/ManagerDashboardPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { UnauthorizedPage } from '../pages/UnauthorizedPage';
 import { UsersPage } from '../pages/UsersPage';
+import { HRDashboardPage } from '../pages/HRDashboardPage';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RequirePasswordChanged } from './RequirePasswordChanged';
+import { HRRoutes } from './HRRoutes';
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/offer/accept/:token" element={<OfferAcceptancePage />} />
+      <Route path="/onboarding/:token" element={<OnboardingPortalPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route path="/change-password" element={<ChangePasswordPage />} />
@@ -62,15 +68,19 @@ export function AppRoutes() {
 
       <Route
         element={
-          <ProtectedRoute
-            allowedRoles={['SUPER_ADMIN', 'HR_ADMIN']}
-            requiredPermission="can_view_admin_dashboard"
-          />
+          <ProtectedRoute allowedRoles={['SUPER_ADMIN']} />
         }
       >
         <Route element={<RequirePasswordChanged />}>
         <Route element={<DashboardLayout />}>
-          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+          <Route
+            path="/admin/dashboard"
+            element={
+              <ProtectedRoute requiredPermission="can_view_admin_dashboard">
+                <AdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/admin/users"
             element={
@@ -395,6 +405,16 @@ export function AppRoutes() {
         </Route>
       </Route>
 
+      <Route element={<ProtectedRoute requiredPermission="can_view_hr_dashboard" />}>
+        <Route element={<RequirePasswordChanged />}>
+          <Route element={<DashboardLayout />}>
+            <Route path="/hr/dashboard" element={<HRDashboardPage />} />
+          </Route>
+        </Route>
+      </Route>
+
+      {HRRoutes()}
+
       <Route
         element={
           <ProtectedRoute
@@ -701,6 +721,14 @@ export function AppRoutes() {
             }
           />
           <Route
+            path="/employee/my-policies"
+            element={
+              <ProtectedRoute requiredPermission="can_view_own_policies">
+                <MyPoliciesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/employee/policies/pending"
             element={
               <ProtectedRoute requiredPermission="can_view_own_policies">
@@ -709,7 +737,23 @@ export function AppRoutes() {
             }
           />
           <Route
+            path="/employee/my-policies/pending"
+            element={
+              <ProtectedRoute requiredPermission="can_view_own_policies">
+                <PendingAcknowledgementsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/employee/policies/:id"
+            element={
+              <ProtectedRoute requiredPermission="can_view_own_policies">
+                <PolicyDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/employee/my-policies/:id"
             element={
               <ProtectedRoute requiredPermission="can_view_own_policies">
                 <PolicyDetailPage />

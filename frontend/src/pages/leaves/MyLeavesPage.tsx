@@ -7,12 +7,12 @@ import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../services/api';
 import { leaveService } from '../../services/leaveService';
 import type { LeaveBalance, LeaveRequest } from '../../types';
-import { getLeavesBasePath } from '../../utils/rbac';
+import { getHrMyLeavesBasePath } from '../../utils/rbac';
 
 export function MyLeavesPage() {
   const { user } = useAuth();
   const location = useLocation();
-  const basePath = user ? getLeavesBasePath(user.role) : '/employee/leaves';
+  const basePath = user ? getHrMyLeavesBasePath(user.role, user.department) : '/employee/leaves';
   const [balance, setBalance] = useState<LeaveBalance | null>(null);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [error, setError] = useState<string | null>(null);

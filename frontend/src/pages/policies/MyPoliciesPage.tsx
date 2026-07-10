@@ -6,11 +6,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../services/api';
 import { policyService } from '../../services/policyService';
 import type { Policy } from '../../types';
-import { formatPolicyCategory, getPoliciesBasePath } from '../../utils/rbac';
+import { formatPolicyCategory, getHrMyPoliciesBasePath } from '../../utils/rbac';
 
 export function MyPoliciesPage() {
   const { user } = useAuth();
-  const basePath = user ? getPoliciesBasePath(user.role) : '/employee/policies';
+  const basePath = user ? getHrMyPoliciesBasePath(user.role, user.department) : '/employee/policies';
   const [allPolicies, setAllPolicies] = useState<Policy[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,20 +38,27 @@ export function MyPoliciesPage() {
   });
 
   const pendingCount = allPolicies.filter((p) => p.acknowledgement_status === 'PENDING').length;
+  const acknowledgedCount = allPolicies.filter((p) => p.acknowledgement_status === 'ACKNOWLEDGED').length;
 
   return (
-    <section className="dashboard-card wide">
-      <div className="page-toolbar">
+    <section className="payroll-card">
+      <div className="payroll-header">
         <div>
-          <h2>My Policies</h2>
-          <p className="muted">
+          <h2 className="payroll-title">My Policies</h2>
+          <p className="payroll-subtitle">
             Review company policies and acknowledge pending items.
             {pendingCount > 0 ? ` You have ${pendingCount} pending.` : ''}
           </p>
         </div>
         {pendingCount > 0 ? (
-          <Link className="btn-primary" to={`${basePath}/pending`}>Pending Acknowledgements</Link>
+          <Link className="payroll-action" to={`${basePath}/pending`}>Pending Acknowledgements</Link>
         ) : null}
+      </div>
+
+      <div className="payroll-kpi-grid">
+        <article className="payroll-kpi-card"><p className="payroll-kpi-card__label">Assigned Policies</p><p className="payroll-kpi-card__value">{allPolicies.length}</p></article>
+        <article className="payroll-kpi-card"><p className="payroll-kpi-card__label">Pending</p><p className="payroll-kpi-card__value">{pendingCount}</p></article>
+        <article className="payroll-kpi-card"><p className="payroll-kpi-card__label">Acknowledged</p><p className="payroll-kpi-card__value">{acknowledgedCount}</p></article>
       </div>
 
       <div className="filter-bar">
@@ -80,7 +87,7 @@ export function MyPoliciesPage() {
 
       {error ? <p className="form-error">{error}</p> : null}
       {isLoading ? (
-        <p>Loading policies...</p>
+        <p className="muted payroll-loading">Loading policies...</p>
       ) : !filtered.length ? (
         <p className="muted">No policies found.</p>
       ) : (
@@ -93,6 +100,8 @@ export function MyPoliciesPage() {
                 <th>Version</th>
                 <th>Effective Date</th>
                 <th>Status</th>
+                <th>Acknowledgement Required</th>
+                <th>Acknowledged Date</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -109,6 +118,12 @@ export function MyPoliciesPage() {
                     ) : (
                       '-'
                     )}
+                  </td>
+                  <td>{policy.requires_acknowledgement ? 'Yes' : 'No'}</td>
+                  <td>
+                    {policy.employee_acknowledged_at
+                      ? new Date(policy.employee_acknowledged_at).toLocaleString('en-IN')
+                      : '—'}
                   </td>
                   <td>
                     <Link to={`${basePath}/${policy.id}`}>

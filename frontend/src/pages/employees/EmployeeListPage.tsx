@@ -1,14 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { PageHeader } from '../../components/PageHeader';
+import {
+  EmployeeFiltersBar,
+  useDebouncedValue,
+} from '../../components/employees/EmployeeFiltersBar';
 import { EmployeeTable } from '../../components/employees/EmployeeTable';
 import { ButtonLink, Card } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../services/api';
 import { employeeService } from '../../services/employeeService';
 import type { Employee } from '../../types';
-import { getEmployeesBasePath } from '../../utils/rbac';
+import {
+  buildEmployeeFilterOptions,
+  emptyEmployeeListFilters,
+  filterEmployees,
+} from '../../utils/employeeFilters';
+import { canManageEmployeeRecords, getEmployeesBasePath, isHrEmployeesRoute } from '../../utils/rbac';
 
 function PlusIcon() {
   return (
@@ -21,13 +30,28 @@ function PlusIcon() {
 export function EmployeeListPage() {
   const { user, can } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [filters, setFilters] = useState(emptyEmployeeListFilters);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const debouncedSearch = useDebouncedValue(filters.search);
 
-  const basePath = user ? getEmployeesBasePath(user.role) : '/admin/employees';
-  const isBasicView = user?.role === 'FINANCE';
-  const canManage = can('can_manage_employees');
   const location = useLocation();
+  const basePath = user ? getEmployeesBasePath(user.role, user.department) : '/admin/employees';
+  const isHrWorkspace = isHrEmployeesRoute(location.pathname);
+  const isBasicView = user?.role === 'FINANCE';
+  const canManage = canManageEmployeeRecords(can, location.pathname);
+
+  const activeFilters = useMemo(
+    () => ({ ...filters, search: debouncedSearch }),
+    [filters, debouncedSearch],
+  );
+
+  const filterOptions = useMemo(() => buildEmployeeFilterOptions(employees), [employees]);
+
+  const filteredEmployees = useMemo(
+    () => filterEmployees(employees, activeFilters),
+    [employees, activeFilters],
+  );
 
   useEffect(() => {
     const loadEmployees = async () => {
@@ -40,6 +64,7 @@ export function EmployeeListPage() {
         const message =
           err instanceof ApiError ? err.message : 'Unable to load employees.';
         setError(message);
+        setEmployees([]);
       } finally {
         setIsLoading(false);
       }
@@ -49,36 +74,51 @@ export function EmployeeListPage() {
   }, [location.pathname]);
 
   return (
-    <div className="employees-page">
+    <div className={`employees-page${isHrWorkspace ? ' employees-page--hr' : ''}`}>
       <Card wide className="employees-page-card employees-page-card--list">
-      <PageHeader
-        title="Employees"
-        description={
-          canManage
-            ? 'Manage employee records and linked user accounts.'
-            : 'View employee records based on your access level.'
-        }
-        actions={
-          canManage ? (
-            <ButtonLink to={`${basePath}/new`} className="employees-page__add-button">
-              <PlusIcon />
-              Add Employee
-            </ButtonLink>
-          ) : undefined
-        }
-      />
-
-      {error ? <p className="form-error">{error}</p> : null}
-      {isLoading ? (
-        <p className="muted employees-page__loading">Loading employees...</p>
-      ) : (
-        <EmployeeTable
-          employees={employees}
-          basePath={basePath}
-          canManage={canManage}
-          isBasicView={isBasicView}
+        <PageHeader
+          title={isHrWorkspace ? 'Employee Management' : 'Employees'}
+          description={
+            isHrWorkspace
+              ? 'Manage employee records, company details, and employment status.'
+              : canManage
+                ? 'Manage employee records and linked user accounts.'
+                : 'View employee records based on your access level.'
+          }
+          actions={
+            canManage ? (
+              <ButtonLink to={`${basePath}/new`} className="employees-page__add-button">
+                <PlusIcon />
+                Add Employee
+              </ButtonLink>
+            ) : undefined
+          }
         />
-      )}
+
+        {error ? <p className="form-error employees-page__error">{error}</p> : null}
+
+        <EmployeeFiltersBar
+          filters={filters}
+          options={filterOptions}
+          resultCount={filteredEmployees.length}
+          totalCount={employees.length}
+          onChange={setFilters}
+          onReset={() => setFilters(emptyEmployeeListFilters)}
+        />
+
+        {isLoading ? (
+          <div className="employees-page__loading-state">
+            <span className="employees-page__loading-spinner" aria-hidden />
+            <p>Loading employees...</p>
+          </div>
+        ) : (
+          <EmployeeTable
+            employees={filteredEmployees}
+            basePath={basePath}
+            canManage={canManage}
+            isBasicView={isBasicView}
+          />
+        )}
       </Card>
     </div>
   );

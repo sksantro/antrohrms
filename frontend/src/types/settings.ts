@@ -88,6 +88,77 @@ export function formatHolidayType(value: HolidayType): string {
   return HOLIDAY_TYPE_OPTIONS.find((item) => item.value === value)?.label ?? value;
 }
 
+export interface DepartmentMaster {
+  id: number;
+  name: string;
+  description: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DepartmentMasterPayload {
+  name: string;
+  description?: string;
+  is_active?: boolean;
+}
+
+export interface DesignationMaster {
+  id: number;
+  name: string;
+  department: number | null;
+  department_name: string | null;
+  description: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DesignationMasterPayload {
+  name: string;
+  department?: number | null;
+  description?: string;
+  is_active?: boolean;
+}
+
+export interface LeaveTypeMaster {
+  id: number;
+  code: string;
+  name: string;
+  annual_quota: string;
+  is_paid: boolean;
+  description: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeaveTypeMasterPayload {
+  code: string;
+  name: string;
+  annual_quota?: number | string;
+  is_paid?: boolean;
+  description?: string;
+  is_active?: boolean;
+}
+
+export interface PolicyCategoryMaster {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PolicyCategoryMasterPayload {
+  code: string;
+  name: string;
+  description?: string;
+  is_active?: boolean;
+}
+
 export interface HolidayImportRow {
   row_number: number;
   name: string;

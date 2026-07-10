@@ -6,11 +6,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../services/api';
 import { policyService } from '../../services/policyService';
 import type { Policy } from '../../types';
-import { formatPolicyCategory, getPoliciesBasePath } from '../../utils/rbac';
+import { formatPolicyCategory, getHrMyPoliciesBasePath } from '../../utils/rbac';
 
 export function PendingAcknowledgementsPage() {
   const { user } = useAuth();
-  const basePath = user ? getPoliciesBasePath(user.role) : '/employee/policies';
+  const basePath = user ? getHrMyPoliciesBasePath(user.role, user.department) : '/employee/policies';
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);

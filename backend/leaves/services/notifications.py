@@ -1,5 +1,5 @@
-from accounts.models import Notification, User
-from employees.models import Employee
+from accounts.models import Notification
+from employees.hr_access import get_hr_users
 
 
 def notify_user(user, title, message, notification_type, related_id=None, related_model=''):
@@ -55,8 +55,7 @@ def notify_employee_leave_status(leave_request, approved: bool):
 
 
 def notify_hr_escalation(leave_request):
-    hr_users = User.objects.filter(role__in=[User.Role.HR_ADMIN, User.Role.SUPER_ADMIN], is_active=True)
-    for hr in hr_users:
+    for hr in get_hr_users():
         notify_user(
             hr,
             'Leave Escalated',
@@ -69,8 +68,7 @@ def notify_hr_escalation(leave_request):
 
 
 def notify_hr_special_approval(leave_request):
-    hr_users = User.objects.filter(role__in=[User.Role.HR_ADMIN, User.Role.SUPER_ADMIN], is_active=True)
-    for hr in hr_users:
+    for hr in get_hr_users():
         notify_user(
             hr,
             'Special Approval Required',

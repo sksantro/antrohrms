@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { EmployeeForm } from '../../components/employees/EmployeeForm';
 import { TemporaryCredentialsCard } from '../../components/employees/TemporaryCredentialsCard';
@@ -9,7 +9,11 @@ import { ApiError } from '../../services/api';
 import { employeeService } from '../../services/employeeService';
 import type { Employee, EmployeeFormData } from '../../types';
 import { emptyEmployeeForm } from '../../types';
-import { getEmployeesBasePath } from '../../utils/rbac';
+import {
+  canManageEmployeeRecords,
+  getEmployeesBasePath,
+  isHrEmployeesRoute,
+} from '../../utils/rbac';
 
 function employeeToForm(employee: Employee): EmployeeFormData {
   return {
@@ -30,6 +34,7 @@ function employeeToForm(employee: Employee): EmployeeFormData {
     address: employee.address ?? '',
     emergency_contact_name: employee.emergency_contact_name ?? '',
     emergency_contact_phone: employee.emergency_contact_phone ?? '',
+    employee_code: employee.employee_code,
   };
 }
 
@@ -43,9 +48,12 @@ interface CreatedCredentials {
 export function EmployeeFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, can } = useAuth();
   const isEdit = Boolean(id);
-  const basePath = user ? getEmployeesBasePath(user.role) : '/admin/employees';
+  const isHrWorkspace = isHrEmployeesRoute(location.pathname);
+  const basePath = user ? getEmployeesBasePath(user.role, user.department) : '/admin/employees';
+  const canManage = canManageEmployeeRecords(can, location.pathname);
 
   const [form, setForm] = useState<EmployeeFormData>(emptyEmployeeForm);
   const [managers, setManagers] = useState<Employee[]>([]);
@@ -53,6 +61,12 @@ export function EmployeeFormPage() {
   const [createdCredentials, setCreatedCredentials] = useState<CreatedCredentials | null>(null);
   const [isLoading, setIsLoading] = useState(isEdit);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!canManage) {
+      navigate(basePath, { replace: true });
+    }
+  }, [basePath, canManage, navigate]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -106,10 +120,17 @@ export function EmployeeFormPage() {
     }
   };
 
+  if (!canManage) {
+    return null;
+  }
+
   if (isLoading) {
     return (
       <Card wide className="employees-page-card employee-form-page-card">
-        <p>Loading...</p>
+        <div className="employees-page__loading-state">
+          <span className="employees-page__loading-spinner" aria-hidden />
+          <p>Loading employee form...</p>
+        </div>
       </Card>
     );
   }
@@ -128,25 +149,32 @@ export function EmployeeFormPage() {
   }
 
   return (
-    <div className="employees-page">
+    <div className={`employees-page${isHrWorkspace ? ' employees-page--hr' : ''}`}>
       <Card wide className="employees-page-card employee-form-page-card">
         <div className="employee-form-page__header">
           <div>
-            <h2 className="employee-form-page__title">{isEdit ? 'Edit Employee' : 'Add Employee'}</h2>
+            <h2 className="employee-form-page__title">
+              {isEdit ? 'Edit Employee' : 'Add Employee'}
+            </h2>
             <p className="employee-form-page__subtitle">
-              {isEdit
-                ? 'Update employee record and linked user account.'
-                : 'Create employee record and linked user account.'}
+              {isHrWorkspace
+                ? isEdit
+                  ? 'Update employee company and employment details.'
+                  : 'Create a new employee record with company and employment details.'
+                : isEdit
+                  ? 'Update employee record and linked user account.'
+                  : 'Create employee record and linked user account.'}
             </p>
           </div>
         </div>
 
         <EmployeeForm
           form={form}
-          managers={managers}
+          managers={managers.filter((manager) => !isEdit || manager.id !== Number(id))}
           isEdit={isEdit}
           isSubmitting={isSubmitting}
           error={error}
+          variant={isHrWorkspace ? 'hr' : 'full'}
           allowElevatedRoles={can('can_assign_elevated_employee_roles')}
           onChange={setForm}
           onSubmit={() => void handleSubmit()}

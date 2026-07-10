@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 
 import { useAuth } from '../hooks/useAuth';
 import type { PermissionKey } from '../types';
+import { buildHRNavItems, HR_SECTION_LABELS, HR_SECTION_ORDER } from '../utils/hrNav';
 import { sidebarIcons, type SidebarIconName } from './sidebarIcons';
 
 type SidebarSectionId = 'MAIN' | 'SALES' | 'PEOPLE' | 'TIME_LEAVE' | 'PAYROLL' | 'POLICIES' | 'SETTINGS';
@@ -34,7 +35,17 @@ const SECTION_ORDER: SidebarSectionId[] = [
   'SETTINGS',
 ];
 
-function SidebarLink({ to, label, end, icon }: NavItem) {
+function SidebarLink({
+  to,
+  label,
+  end,
+  icon,
+}: {
+  to: string;
+  label: string;
+  end?: boolean;
+  icon: SidebarIconName;
+}) {
   const Icon = sidebarIcons[icon];
 
   return (
@@ -144,7 +155,7 @@ function buildNavItems(can: (permission: PermissionKey) => boolean, role: string
     items.push({ to: '/admin/payroll/profiles', label: 'Payroll Profiles', section: 'PAYROLL', icon: 'idCard' });
   }
 
-  if (can('can_view_company_settings') && (role === 'SUPER_ADMIN' || role === 'HR_ADMIN')) {
+  if (can('can_view_company_settings')) {
     items.push({ to: '/admin/settings', label: 'Company Settings', section: 'SETTINGS', icon: 'settings' });
   }
 
@@ -175,8 +186,46 @@ function buildNavItems(can: (permission: PermissionKey) => boolean, role: string
 
 export function AppSidebar() {
   const { user, can } = useAuth();
-  const items = buildNavItems(can, user?.role);
+  const isHrWorkspace = can('can_access_hr_workspace');
 
+  if (isHrWorkspace) {
+    const hrItems = buildHRNavItems(can);
+    const groupedSections = HR_SECTION_ORDER.map((sectionId) => ({
+      id: sectionId,
+      label: HR_SECTION_LABELS[sectionId],
+      items: hrItems.filter((item) => item.section === sectionId),
+    })).filter((section) => section.items.length > 0);
+
+    return (
+      <aside className="app-sidebar app-sidebar--hr">
+        <div className="app-brand app-brand--hr">
+          <div className="app-brand-mark app-brand-mark--hr">
+            <img src="/antro-logo.png" alt="Antro" className="app-brand-logo" />
+          </div>
+          <div className="app-brand-copy">
+            <span className="app-brand-name">Antro</span>
+            <span className="app-brand-text">HRMS</span>
+            <span className="app-brand-division">HR Workspace</span>
+          </div>
+        </div>
+
+        <nav className="app-sidebar-nav app-sidebar-nav--hr" aria-label="HR navigation">
+          {groupedSections.map((section) => (
+            <div key={section.id} className="sidebar-section">
+              <p className="sidebar-section__title">{section.label}</p>
+              <div className="sidebar-section__items">
+                {section.items.map((item) => (
+                  <SidebarLink key={item.to} {...item} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </aside>
+    );
+  }
+
+  const items = buildNavItems(can, user?.role);
   const groupedSections = SECTION_ORDER.map((sectionId) => ({
     id: sectionId,
     label: SECTION_LABELS[sectionId],
