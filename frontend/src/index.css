@@ -23,6 +23,10 @@
   .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[.08em] text-ink-400; }
   .table-th { @apply text-left text-[12px] font-semibold text-ink-500 px-4 py-3 bg-ink-50/70 first:rounded-l-xl last:rounded-r-xl; }
   .table-td { @apply px-4 py-3.5 text-ink-700 border-b border-ink-100; }
+  /* Brand gradient taken from the logo: cyan -> blue -> violet. */
+  .btn-brand { @apply btn text-white bg-[length:200%_100%] bg-left hover:bg-right shadow-glow active:scale-[.99]; background-image: linear-gradient(90deg, #12b6ff 0%, #3d5afe 45%, #8b3dff 75%, #3d5afe 100%); transition: background-position .5s ease, transform .15s; }
+  .text-brand-gradient { @apply bg-clip-text text-transparent; background-image: linear-gradient(90deg, #12b6ff 0%, #3d5afe 50%, #9b3dff 100%); }
+  .auth-input { @apply w-full h-[60px] rounded-2xl border border-ink-200 bg-white/80 pl-12 pr-12 pt-6 pb-2 text-[15px] text-ink-900 outline-none transition focus:border-brand-400 focus:ring-4 focus:ring-brand-100 placeholder:text-transparent; }
 }
 
 .mesh {
@@ -43,3 +47,28 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Sign-in scene: a bright studio in light theme, a neon-lit one in dark theme. */
+.auth-bg {
+  background:
+    radial-gradient(38% 50% at 10% 8%, rgba(255,255,255,.95), transparent 70%),
+    radial-gradient(34% 44% at 92% 12%, rgba(139,61,255,.13), transparent 70%),
+    radial-gradient(40% 46% at 48% 96%, rgba(18,182,255,.16), transparent 70%),
+    linear-gradient(180deg, #f7f9ff 0%, #eef2fe 62%, #e5eafb 100%);
+}
+.dark .auth-bg {
+  background:
+    radial-gradient(32% 42% at 46% 78%, rgba(61,90,254,.32), transparent 70%),
+    radial-gradient(30% 40% at 88% 8%, rgba(139,61,255,.24), transparent 70%),
+    radial-gradient(40% 50% at 4% 0%, rgba(18,182,255,.12), transparent 70%),
+    linear-gradient(180deg, #060918 0%, #0a0f2a 60%, #070a1c 100%);
+}
+.auth-lines { color: rgb(136 145 173 / .35); }
+.dark .auth-lines { color: rgb(255 255 255 / .07); }
+.neon { opacity: .55; }
+.dark .neon { opacity: 1; filter: drop-shadow(0 0 6px rgba(80,140,255,.9)) drop-shadow(0 0 18px rgba(139,61,255,.6)); }
+.sculpture { filter: drop-shadow(0 30px 40px rgba(61,90,254,.28)); }
+.dark .sculpture { filter: drop-shadow(0 0 40px rgba(61,90,254,.55)) drop-shadow(0 30px 50px rgba(139,61,255,.35)); }
+.auth-card { @apply rounded-[28px] border border-white/70 bg-white/75 shadow-[0_30px_80px_-30px_rgba(40,50,120,.35)] backdrop-blur-xl; }
+.dark .auth-card { @apply border-white/10 bg-[#0b1130]/70 shadow-[0_0_0_1px_rgba(90,120,255,.15),0_30px_80px_-20px_rgba(0,0,0,.7)]; }
+

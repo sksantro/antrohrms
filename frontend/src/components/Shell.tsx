@@ -8,15 +8,14 @@ import { useMe, useStore } from '../lib/store'
 import { homeFor, navFor } from './nav'
 import { Avatar, useDialog, useEscape } from './ui'
 
-export function Logo({ light }: { light?: boolean }) {
+export function Logo({ light, size = 'md' }: { light?: boolean; size?: 'md' | 'lg' }) {
+  const lg = size === 'lg'
   return (
     <div className="flex items-center gap-2.5">
-      <div className="size-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-900 grid place-items-center shadow-glow">
-        <svg viewBox="0 0 32 32" className="size-5"><path d="M9 23 16 8l7 15M11.8 17.5h8.4" stroke="#fff" strokeWidth="2.8" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
-      </div>
+      <img src="/brand/antro-mark-192.png" alt="" className={clsx('shrink-0 drop-shadow-[0_4px_10px_rgba(61,90,254,.35)]', lg ? 'size-14' : 'size-10')} />
       <div className="leading-none">
-        <div className={clsx('font-display font-extrabold text-[17px] tracking-tight', light ? 'text-white' : 'text-ink-900')}>antro<span className="text-brand-500">.</span>hr</div>
-        <div className={clsx('text-[10.5px] mt-1 font-medium', light ? 'text-white/60' : 'text-ink-400')}>Antro-Pai Technology</div>
+        <div className={clsx('font-display font-extrabold tracking-tight', lg ? 'text-[30px]' : 'text-[19px]', light ? 'text-white' : 'text-ink-900')}>Antro</div>
+        <div className={clsx('font-semibold tracking-[.32em] mt-1', lg ? 'text-[12px]' : 'text-[9.5px]', light ? 'text-white/60' : 'text-ink-400')}>HRMS</div>
       </div>
     </div>
   )
