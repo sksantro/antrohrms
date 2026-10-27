@@ -11,7 +11,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from accounts.models import Role, RoleAssignment, User
-from common.models import OfficeSite, Organization, PolicyVersion
+from common.models import Organization, PolicyVersion
 from employees.models import Department, Employee
 from employees.services import issue_employee_code
 from payroll.models import SalaryVersion
@@ -53,6 +53,7 @@ PEOPLE = [
     ("Rohan Das", "rohan", "DevOps Engineer", "Engineering", "kabir", "2026-10-06", "PROBATION", [], 55000),
     ("Tara Menon", "tara", "Business Analyst", "Pre-sales", "meera", "2025-05-12", "NOTICE_PERIOD", [], 40000),
 ]
+DEPARTMENTS = ["Engineering", "Design", "Sales", "Pre-sales", "People Ops"]
 DOMAIN = "antropai.example"  # reserved example domain — never a real mailbox
 
 
@@ -79,11 +80,10 @@ class Command(BaseCommand):
             self.stdout.write("Organization already exists — nothing to do.")
             return
 
-        org = Organization.objects.create(legal_name="Antro-Pai Technology Pvt. Ltd.", short_name="Antro")
-        OfficeSite.objects.create(organization=org, name="Hyderabad office", address="Address to be configured by Super Admin")
-        for key, value, status in POLICIES:
-            PolicyVersion.objects.create(organization=org, key=key, value=value, status=status, effective_from=date(2026, 1, 1))
-        depts = {n: Department.objects.create(organization=org, name=n) for n in ["Engineering", "Design", "Sales", "Pre-sales", "People Ops"]}
+        from .bootstrap_admin import create_organization
+
+        org = create_organization()
+        depts = {d.name: d for d in Department.objects.filter(organization=org)}
 
         emps: dict[str, Employee] = {}
         admin_user = None

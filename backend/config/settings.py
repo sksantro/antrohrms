@@ -19,21 +19,33 @@ def _load_dotenv(path: Path) -> None:
 _load_dotenv(BASE_DIR / ".env")
 
 
-def env(key: str, default: str | None = None) -> str:
-    val = os.environ.get(key, default)
+def env(key: str, default: str | None = None, *, legacy: str | None = None) -> str:
+    """Read an env var; `legacy` is the name the previous deployment's .env used for the same value."""
+    val = os.environ.get(key)
+    if val is None and legacy:
+        val = os.environ.get(legacy)
+    if val is None:
+        val = default
     if val is None:
         raise RuntimeError(f"Missing required environment variable {key}")
     return val
 
 
-def env_bool(key: str, default: bool = False) -> bool:
-    return env(key, str(default)).lower() in {"1", "true", "yes"}
+def env_bool(key: str, default: bool = False, *, legacy: str | None = None) -> bool:
+    return env(key, str(default), legacy=legacy).lower() in {"1", "true", "yes"}
 
 
-SECRET_KEY = env("DJANGO_SECRET_KEY")
-DEBUG = env_bool("DJANGO_DEBUG", False)
-ALLOWED_HOSTS = [h for h in env("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
-CSRF_TRUSTED_ORIGINS = [o for o in env("CSRF_TRUSTED_ORIGINS", "").split(",") if o]
+def env_list(key: str, default: str = "", *, legacy: str | None = None) -> list[str]:
+    return [x.strip() for x in env(key, default, legacy=legacy).split(",") if x.strip()]
+
+
+SECRET_KEY = env("DJANGO_SECRET_KEY", legacy="SECRET_KEY")
+DEBUG = env_bool("DJANGO_DEBUG", False, legacy="DEBUG")
+ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", legacy="CORS_ALLOWED_ORIGINS")
+# Only needed when the web app is served from a different origin than the API.
+CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS")
+CORS_ALLOW_CREDENTIALS = True
 WEB_BASE_URL = env("WEB_BASE_URL", "http://localhost:5174")
 
 INSTALLED_APPS = [
@@ -44,6 +56,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "corsheaders",
     "common",
     "accounts",
     "employees",
@@ -53,6 +66,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "common.middleware.RequestIdMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -78,18 +92,18 @@ TEMPLATES = [
 ]
 WSGI_APPLICATION = "config.wsgi.application"
 
-_db = urlparse(env("DATABASE_URL"))
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": _db.path.lstrip("/"),
-        "USER": _db.username,
-        "PASSWORD": _db.password,
-        "HOST": _db.hostname,
-        "PORT": _db.port or 5432,
-        "ATOMIC_REQUESTS": True,
-    }
-}
+# DATABASE_URL is preferred; DB_ENGINE/DB_* is what the previous server .env used.
+if os.environ.get("DATABASE_URL"):
+    _db = urlparse(env("DATABASE_URL"))
+    _default = {"ENGINE": "django.db.backends.postgresql", "NAME": _db.path.lstrip("/"), "USER": _db.username,
+                "PASSWORD": _db.password, "HOST": _db.hostname, "PORT": _db.port or 5432}
+elif env("DB_ENGINE", "") == "postgresql":
+    _default = {"ENGINE": "django.db.backends.postgresql", "NAME": env("DB_NAME", "antro_hrms"), "USER": env("DB_USER", "postgres"),
+                "PASSWORD": env("DB_PASSWORD", ""), "HOST": env("DB_HOST", "localhost"), "PORT": env("DB_PORT", "5432")}
+else:
+    # New file name so an old db.sqlite3 from the previous app is never reused.
+    _default = {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "hrms.sqlite3"}
+DATABASES = {"default": {**_default, "ATOMIC_REQUESTS": True}}
 
 AUTH_USER_MODEL = "accounts.User"
 PASSWORD_HASHERS = [
@@ -106,10 +120,12 @@ AUTH_PASSWORD_VALIDATORS = [
 # Server-side session in HttpOnly cookie + CSRF (BRD §0.4). No tokens in localStorage.
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = not DEBUG
+# Secure cookies need HTTPS. Set COOKIE_SECURE=false only for a temporary plain-HTTP server.
+SESSION_COOKIE_SECURE = env_bool("COOKIE_SECURE", not DEBUG)
 SESSION_COOKIE_AGE = 60 * 60 * 10
 CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 
@@ -140,6 +156,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGGING = {

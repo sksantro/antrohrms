@@ -59,12 +59,18 @@ export class ApiError extends Error {
   }
 }
 
+// Same-origin '/api' by default. VITE_API_BASE_URL (e.g. https://api.example.com/api) supports an API on another subdomain.
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/+$/, '') + '/v1'
+
+let csrf = ''
 function csrfToken() {
-  return document.cookie.split('; ').find((c) => c.startsWith('csrftoken='))?.split('=')[1] ?? ''
+  return csrf || document.cookie.split('; ').find((c) => c.startsWith('csrftoken='))?.split('=')[1] || ''
 }
 
 async function ensureCsrf() {
-  if (!csrfToken()) await fetch('/api/v1/auth/csrf', { credentials: 'same-origin' })
+  if (csrfToken()) return
+  const r = await fetch(API_BASE + '/auth/csrf', { credentials: 'include' })
+  csrf = ((await r.json().catch(() => ({}))) as { csrf_token?: string }).csrf_token ?? ''
 }
 
 export const UNAUTHORIZED_EVENT = 'antro:unauthorized'
@@ -74,17 +80,21 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (write) await ensureCsrf()
   let res: Response
   try {
-    res = await fetch('/api/v1' + path, {
+    res = await fetch(API_BASE + path, {
       method,
-      credentials: 'same-origin',
+      credentials: 'include',
       headers: { Accept: 'application/json', ...(body !== undefined && { 'Content-Type': 'application/json' }), ...(write && { 'X-CSRFToken': csrfToken() }) },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   } catch {
     throw new ApiError(0, null)
   }
-  if (res.status === 204) return undefined as T
+  if (res.status === 204) {
+    if (path === '/auth/logout') csrf = ''
+    return undefined as T
+  }
   const data = await res.json().catch(() => null)
+  if (path === '/auth/login' || path === '/auth/activate') csrf = '' // Django rotates the token on login
   if (!res.ok) {
     if (res.status === 401 && path !== '/auth/me') window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
     throw new ApiError(res.status, data)
