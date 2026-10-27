@@ -17,9 +17,16 @@ def issue_employee_code(organization) -> str:
     return code
 
 
-def send_invite(*, user: User, actor: User, request=None) -> Invite:
+def web_base(request=None) -> str:
+    if settings.WEB_BASE_URL:
+        return settings.WEB_BASE_URL.rstrip("/")
+    return request.build_absolute_uri("/").rstrip("/") if request else "http://localhost:5174"
+
+
+def send_invite(*, user: User, actor: User, request=None) -> tuple[Invite, str]:
+    """Issue a fresh invite, queue the email, and return the link so HR can also share it by hand."""
     invite, token = Invite.issue(user, created_by=actor)
-    link = f"{settings.WEB_BASE_URL}/activate?token={token}"
+    link = f"{web_base(request)}/activate?token={token}"
     queue_email(
         template_key="ACCOUNT_INVITE",
         recipient=user.email,
@@ -34,11 +41,11 @@ def send_invite(*, user: User, actor: User, request=None) -> Invite:
         organization=user.organization,
     )
     audit(actor=actor, action="INVITE_SENT", entity=user, after={"invite_id": str(invite.pk), "expires_at": invite.expires_at.isoformat()}, request=request)
-    return invite
+    return invite, link
 
 
 @transaction.atomic
-def create_employee(*, actor: User, data: dict, roles: list[str], request=None) -> Employee:
+def create_employee(*, actor: User, data: dict, roles: list[str], request=None) -> tuple[Employee, str]:
     org = actor.organization
     email = data["official_email"].lower()
     if User.objects.filter(email=email).exists():
@@ -56,5 +63,5 @@ def create_employee(*, actor: User, data: dict, roles: list[str], request=None) 
         status=status,
     )
     audit(actor=actor, action="EMPLOYEE_CREATED", entity=emp, after={"code": emp.employee_code, "roles": sorted({Role.EMPLOYEE, *roles})}, request=request)
-    send_invite(user=user, actor=actor, request=request)
-    return emp
+    _, link = send_invite(user=user, actor=actor, request=request)
+    return emp, link

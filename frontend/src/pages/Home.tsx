@@ -4,12 +4,14 @@ import TimeTracker from '../components/TimeTracker'
 import { Bar, Card, CardHeader, Pill, StatTile } from '../components/ui'
 import { HOLIDAYS, LEAVE_META, PAYSLIPS, type LeaveType } from '../lib/data'
 import { fmtDate, fmtMonth, greeting, inr } from '../lib/format'
+import { useToday } from '../lib/attendance'
 import { useAuth } from '../lib/auth'
 import { useMe, useStore } from '../lib/store'
 import { leaveBalance } from './Leave'
 
 export default function Home() {
   const me = useMe()
+  const att = useToday()
   const probationEnd = useAuth().me?.employee?.probation_end
   const { role, leaves, optional } = useStore()
   const today = new Date().toISOString().slice(0, 10)
@@ -24,7 +26,7 @@ export default function Home() {
         <div>
           <div className="flex items-center gap-2 mb-1.5">
             <div className="eyebrow">{fmtDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-            <span title="Time tracking, leave and payslips connect to the server in phases P1–P2." className="text-[10.5px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">Sample data · P1–P2</span>
+            <span title="Leave, holidays, payslips and HR cards below connect to the server in later phases." className="text-[10.5px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">Cards below: sample data</span>
           </div>
           <h1 className="text-[28px] font-bold">{greeting()}, {me.name.split(' ')[0]} <span className="inline-block origin-bottom-right">✨</span></h1>
           <p className="text-ink-500 mt-1">Here’s your day at a glance.</p>
@@ -35,7 +37,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="animate-fade-up" style={{ animationDelay: '60ms' }}><TimeTracker /></div>
+      <div className="animate-fade-up" style={{ animationDelay: '60ms' }}><TimeTracker att={att} /></div>
 
       {role === 'HR_OPERATIONS' && (
         <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 animate-fade-up">

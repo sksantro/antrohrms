@@ -2,58 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { viewsFor, useAuth } from './auth'
 import { APPROVALS, EMPLOYEES, LEAVES, type Approval, type Employee, type LeaveRequest, type Role } from './data'
 
-// ---------- Attendance: immutable event ledger + derived summary (BRD §4.2) ----------
-export type AttEventType = 'CHECK_IN' | 'START_TEA' | 'END_TEA' | 'START_LUNCH' | 'END_LUNCH' | 'CHECK_OUT'
-export interface AttEvent { type: AttEventType; at: number; note?: string }
-export type AttState = 'NOT_CHECKED_IN' | 'WORKING' | 'ON_TEA' | 'ON_LUNCH' | 'CHECKED_OUT'
-
-export const WORK_TARGET = 8 * 3600
-export const PRESENCE_TARGET = 9 * 3600
-
-export function deriveAttendance(events: AttEvent[], now: number) {
-  let state: AttState = 'NOT_CHECKED_IN'
-  let checkIn: number | null = null
-  let checkOut: number | null = null
-  let segStart = 0
-  let work = 0, tea = 0, lunch = 0, teaCount = 0
-  for (const e of events) {
-    const t = e.at
-    switch (e.type) {
-      case 'CHECK_IN': state = 'WORKING'; checkIn = t; segStart = t; break
-      case 'START_TEA': work += t - segStart; segStart = t; state = 'ON_TEA'; teaCount++; break
-      case 'START_LUNCH': work += t - segStart; segStart = t; state = 'ON_LUNCH'; break
-      case 'END_TEA': tea += t - segStart; segStart = t; state = 'WORKING'; break
-      case 'END_LUNCH': lunch += t - segStart; segStart = t; state = 'WORKING'; break
-      case 'CHECK_OUT':
-        if (state === 'WORKING') work += t - segStart
-        if (state === 'ON_TEA') tea += t - segStart
-        if (state === 'ON_LUNCH') lunch += t - segStart
-        state = 'CHECKED_OUT'; checkOut = t; break
-    }
-  }
-  const open = now - segStart
-  const breakElapsed = state === 'ON_TEA' || state === 'ON_LUNCH' ? open : 0
-  if (state === 'WORKING') work += open
-  if (state === 'ON_TEA') tea += open
-  if (state === 'ON_LUNCH') lunch += open
-  const presence = checkIn ? (checkOut ?? now) - checkIn : 0
-  const s = (ms: number) => Math.max(0, Math.floor(ms / 1000))
-  return {
-    state, checkIn, checkOut, teaCount,
-    work: s(work), tea: s(tea), lunch: s(lunch), presence: s(presence), breakElapsed: s(breakElapsed),
-  }
-}
-
-function seedEvents(): AttEvent[] {
-  const now = Date.now()
-  const m = 60_000
-  return [
-    { type: 'CHECK_IN', at: now - 222 * m },
-    { type: 'START_TEA', at: now - 140 * m },
-    { type: 'END_TEA', at: now - 128 * m },
-  ]
-}
-
 // ---------- Toasts ----------
 export interface Toast { id: number; title: string; body?: string; tone: 'success' | 'error' | 'info' }
 
@@ -63,9 +11,6 @@ interface Store {
   views: Role[]
   meId: string
   now: number
-  events: AttEvent[]
-  punch: (type: AttEventType, note?: string) => void
-  resetDay: () => void
   leaves: LeaveRequest[]
   applyLeave: (l: Omit<LeaveRequest, 'id' | 'status' | 'submitted' | 'empId'>) => void
   cancelLeave: (id: string) => void
@@ -96,18 +41,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const views = viewsFor(me)
   const [view, setView] = useState<Role | null>(() => load<Role | null>('view', null))
   const role: Role = view && views.includes(view) ? view : views[0] ?? 'EMPLOYEE'
-  // Attendance/leave/payslip pages still run on fixtures until P1/P2; match the fixture person by email.
+  // Leave/holiday/payslip pages still run on fixtures until P2; match the fixture person by email.
   const meId = EMPLOYEES.find((e) => e.email === me?.email)?.id ?? me?.id ?? ''
   const isFixturePerson = EMPLOYEES.some((e) => e.id === meId)
-  // Demo state is per user so a newly activated person starts with a clean day.
-  const [events, setEvents] = useState<AttEvent[]>(() => load(`events:${meId}`, isFixturePerson ? seedEvents() : []))
+  // Demo state is per user so a newly activated person starts with a clean slate.
   const [optional, setOptional] = useState<string[]>(() => load(`optional:${meId}`, isFixturePerson ? ['2026-03-04'] : []))
   const [now, setNow] = useState(Date.now())
   const [leaves, setLeaves] = useState<LeaveRequest[]>(LEAVES)
   const [approvals, setApprovals] = useState<Approval[]>(APPROVALS)
   const [toasts, setToasts] = useState<Toast[]>([])
 
-  // Timers re-derive from timestamps every tick and on visibility change (BRD §4.4).
+  // A 1-second clock for live timers; they are re-anchored to server time on every fetch (BRD §4.4).
   useEffect(() => {
     const tick = () => setNow(Date.now())
     const id = setInterval(tick, 1000)
@@ -115,7 +59,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', tick) }
   }, [])
 
-  useEffect(() => save(`events:${meId}`, events), [meId, events])
   useEffect(() => save(`optional:${meId}`, optional), [meId, optional])
 
   const toast = useCallback((t: Omit<Toast, 'id'>) => {
@@ -130,9 +73,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     views,
     meId,
     now,
-    events,
-    punch: (type, note) => setEvents((e) => [...e, { type, at: Date.now(), note }]),
-    resetDay: () => setEvents([]),
     leaves,
     applyLeave: (l) => setLeaves((x) => [{ ...l, id: 'l' + Date.now(), empId: meId, status: 'SUBMITTED', submitted: new Date().toISOString().slice(0, 10) }, ...x]),
     cancelLeave: (id) => setLeaves((x) => x.map((l) => (l.id === id ? { ...l, status: 'CANCELLED' } : l))),
@@ -144,7 +84,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toasts,
     toast,
     dismissToast: (id) => setToasts((x) => x.filter((y) => y.id !== id)),
-  }), [role, views, meId, now, events, leaves, optional, approvals, toasts, toast])
+  }), [role, views, meId, now, leaves, optional, approvals, toasts, toast])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

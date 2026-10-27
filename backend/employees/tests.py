@@ -58,6 +58,7 @@ class InviteEmployeeTests(Fixture):
     def test_admin_creates_and_invites_employee(self):
         r = self.as_user(self.admin).post("/api/v1/employees", self.payload(roles=["INTERVIEWER"]), format="json")
         self.assertEqual(r.status_code, 201, r.data)
+        self.assertRegex(r.data["invite_url"], r"/activate\?token=[\w-]{30,}$")
         emp = Employee.objects.get(official_email="new@test.example")
         self.assertTrue(emp.employee_code.startswith("APT-"))
         self.assertEqual(emp.probation_end, date(2027, 2, 2))
@@ -120,3 +121,20 @@ class UpdateAndRoleTests(Fixture):
     def test_admin_cannot_remove_own_admin_role(self):
         r = self.as_user(self.admin).put(f"/api/v1/admin/employees/{self.admin.employee.pk}/roles", {"roles": []}, format="json")
         self.assertEqual(r.data["code"], "SELF_LOCKOUT")
+
+
+class InviteLinkTests(Fixture):
+    def test_resend_returns_new_working_link_and_revokes_old(self):
+        from rest_framework.test import APIClient
+        emp = self.make("pending", [])
+        emp.set_unusable_password()
+        emp.save()
+        c = self.as_user(self.hr)
+        first = c.post(f"/api/v1/employees/{emp.employee.pk}/resend-invite").data["invite_url"]
+        second = c.post(f"/api/v1/employees/{emp.employee.pk}/resend-invite").data["invite_url"]
+        tok = lambda url: url.split("token=")[1]
+        self.assertEqual(APIClient().get(f"/api/v1/auth/activate?token={tok(first)}").status_code, 422)
+        self.assertEqual(APIClient().get(f"/api/v1/auth/activate?token={tok(second)}").status_code, 200)
+
+    def test_employee_cannot_get_invite_link(self):
+        self.assertEqual(self.as_user(self.emp).post(f"/api/v1/employees/{self.other.employee.pk}/resend-invite").status_code, 403)

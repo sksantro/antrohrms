@@ -40,7 +40,7 @@ const ADMIN: NavSection = {
     { to: '/admin', label: 'Command Center', icon: Gauge },
     { to: '/admin/approvals', label: 'Approval Inbox', icon: Inbox, badge: 'approvals' },
     { to: '/people', label: 'Employee Directory', icon: Users },
-    { to: '/admin/attendance', label: 'Attendance Analytics', icon: Clock },
+    { to: '/admin/attendance', label: 'Attendance', icon: Clock },
     { to: '/admin/payroll', label: 'Payroll', icon: Wallet },
     { to: '/admin/appraisals', label: 'Appraisals', icon: Sparkles, planned: 'P5' },
     { to: '/admin/settings', label: 'Policy Center', icon: Settings2 },

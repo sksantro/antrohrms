@@ -1,7 +1,7 @@
 import clsx from 'clsx'
-import { AlertCircle, Mail, RefreshCw, Search, Send, ShieldCheck, UserPlus, X } from 'lucide-react'
+import { AlertCircle, Check, Copy, Link2, Mail, RefreshCw, Search, Send, ShieldCheck, UserPlus, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { Avatar, Card, Drawer, EmptyState, PageHeader, Pill, type Tone } from '../../components/ui'
+import { Avatar, Card, Drawer, EmptyState, Modal, PageHeader, Pill, type Tone } from '../../components/ui'
 import { api, ApiError, type Department, type EmployeeDTO, type ServerRole } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { fmtDate } from '../../lib/format'
@@ -38,6 +38,7 @@ export default function Directory() {
   const [error, setError] = useState<ApiError | null>(null)
   const [view, setView] = useState<EmployeeDTO | null>(null)
   const [adding, setAdding] = useState(false)
+  const [invite, setInvite] = useState<{ name: string; url: string } | null>(null)
 
   const load = useCallback(() => {
     setError(null)
@@ -91,13 +92,14 @@ export default function Directory() {
         </div>
       )}
 
-      <ProfileDrawer emp={view} isAdmin={isAdmin} onClose={() => setView(null)} onChanged={(e) => { setView(e); load() }} />
-      <AddEmployeeDrawer open={adding} isAdmin={isAdmin} depts={depts} onClose={() => setAdding(false)} onCreated={() => { setAdding(false); load() }} />
+      <ProfileDrawer emp={view} isAdmin={isAdmin} onClose={() => setView(null)} onChanged={(e) => { setView(e); load() }} onInvite={(url) => view && setInvite({ name: view.display_name, url })} />
+      <AddEmployeeDrawer open={adding} isAdmin={isAdmin} depts={depts} onClose={() => setAdding(false)} onCreated={(name, url) => { setAdding(false); load(); setInvite({ name, url }) }} />
+      <InviteLinkModal invite={invite} onClose={() => setInvite(null)} />
     </>
   )
 }
 
-function ProfileDrawer({ emp, isAdmin, onClose, onChanged }: { emp: EmployeeDTO | null; isAdmin: boolean; onClose: () => void; onChanged: (e: EmployeeDTO) => void }) {
+function ProfileDrawer({ emp, isAdmin, onClose, onChanged, onInvite }: { emp: EmployeeDTO | null; isAdmin: boolean; onClose: () => void; onChanged: (e: EmployeeDTO) => void; onInvite: (url: string) => void }) {
   const { toast } = useStore()
   const { me } = useAuth()
   const [roles, setRoles] = useState<ServerRole[]>([])
@@ -117,13 +119,13 @@ function ProfileDrawer({ emp, isAdmin, onClose, onChanged }: { emp: EmployeeDTO 
     } finally { setBusy(false) }
   }
   const resend = async () => {
-    try { await api.resendInvite(emp.id); toast({ tone: 'success', title: 'Invite sent again', body: `New link emailed to ${emp.official_email}.` }) }
+    try { const r = await api.resendInvite(emp.id); onInvite(r.invite_url) }
     catch (e) { toast({ tone: 'error', title: 'Couldn’t resend invite', body: e instanceof ApiError ? e.message : undefined }) }
   }
 
   return (
     <Drawer open onClose={onClose} title={emp.display_name} subtitle={`${emp.designation} · ${emp.employee_code ?? 'no code yet'}`}
-      footer={<button className="btn-outline" onClick={resend}><Send size={15} /> Resend invite</button>}>
+      footer={<button className="btn-outline" onClick={resend}><Link2 size={15} /> Get invite link</button>}>
       <div className="flex items-center gap-4 mb-6">
         <Avatar name={emp.display_name} hue={hueOf(emp.official_email)} size={64} />
         <div className="space-y-1.5">
@@ -165,7 +167,7 @@ function ProfileDrawer({ emp, isAdmin, onClose, onChanged }: { emp: EmployeeDTO 
   )
 }
 
-function AddEmployeeDrawer({ open, isAdmin, depts, onClose, onCreated }: { open: boolean; isAdmin: boolean; depts: Department[]; onClose: () => void; onCreated: () => void }) {
+function AddEmployeeDrawer({ open, isAdmin, depts, onClose, onCreated }: { open: boolean; isAdmin: boolean; depts: Department[]; onClose: () => void; onCreated: (name: string, inviteUrl: string) => void }) {
   const { toast } = useStore()
   const empty = { display_name: '', official_email: '', phone: '', department_id: '', designation: '', start_date: '', employment_type: 'FULL_TIME', status: 'PROBATION' }
   const [f, setF] = useState(empty)
@@ -181,8 +183,8 @@ function AddEmployeeDrawer({ open, isAdmin, depts, onClose, onCreated }: { open:
     setBusy(true); setErr(null)
     try {
       const e = await api.createEmployee({ ...f, roles: extra })
-      toast({ tone: 'success', title: `${e.display_name} added`, body: `Activation link emailed to ${e.official_email}.` })
-      onCreated()
+      toast({ tone: 'success', title: `${e.display_name} added` })
+      onCreated(e.display_name, e.invite_url)
     } catch (e) {
       if (e instanceof ApiError) setErr(e)
     } finally { setBusy(false) }
@@ -239,5 +241,25 @@ function AddEmployeeDrawer({ open, isAdmin, depts, onClose, onCreated }: { open:
         )}
       </div>
     </Drawer>
+  )
+}
+
+/** Email isn't set up yet, so HR/Admin share the activation link themselves (valid 72 hours, single use). */
+function InviteLinkModal({ invite, onClose }: { invite: { name: string; url: string } | null; onClose: () => void }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => setCopied(false), [invite])
+  if (!invite) return null
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(invite.url); setCopied(true) } catch { setCopied(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Invite link for ${invite.name}`} footer={<button className="btn-primary" onClick={onClose}>Done</button>}>
+      <p className="text-[13.5px] text-ink-600 mb-3">Send this link to them privately (e.g. WhatsApp or Slack). They’ll set their own password. It works once and expires in 72 hours. Getting a new link cancels the old one.</p>
+      <div className="flex gap-2">
+        <input readOnly className="input font-mono text-[12px]" value={invite.url} onFocus={(e) => e.currentTarget.select()} aria-label="Invite link" />
+        <button className="btn-dark shrink-0" onClick={copy}>{copied ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy</>}</button>
+      </div>
+      <p className="text-[12px] text-ink-400 mt-3 flex items-center gap-1.5"><Send size={13} /> It’s also queued as an email, which will send once email is set up on the server.</p>
+    </Modal>
   )
 }

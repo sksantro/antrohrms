@@ -46,7 +46,8 @@ CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", legacy="CORS_ALLOWED_ORI
 # Only needed when the web app is served from a different origin than the API.
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = True
-WEB_BASE_URL = env("WEB_BASE_URL", "http://localhost:5174")
+# Base for links in emails/invites; when empty, the address the request came in on is used.
+WEB_BASE_URL = env("WEB_BASE_URL", "")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -61,6 +62,7 @@ INSTALLED_APPS = [
     "accounts",
     "employees",
     "payroll",
+    "attendance",
 ]
 
 MIDDLEWARE = [

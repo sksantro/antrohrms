@@ -1,4 +1,4 @@
-import { Clock, Lock, Rocket } from 'lucide-react'
+import { Lock, Rocket } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { BrowserRouter, Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { homeFor, navFor } from './components/nav'
@@ -11,7 +11,8 @@ import { StoreProvider, useStore } from './lib/store'
 import Activate from './pages/Activate'
 import Audit from './pages/admin/Audit'
 import Approvals from './pages/admin/Approvals'
-import CommandCenter, { LiveTable } from './pages/admin/CommandCenter'
+import AttendanceAdmin from './pages/admin/AttendanceAdmin'
+import CommandCenter from './pages/admin/CommandCenter'
 import Directory from './pages/admin/Directory'
 import Payroll from './pages/admin/Payroll'
 import Policy from './pages/admin/Policy'
@@ -99,7 +100,7 @@ function AppRoutes() {
         <Route path="/admin/approvals" element={<Guard roles={['SUPER_ADMIN']}><Approvals /></Guard>} />
         <Route path="/admin/employees" element={<Navigate to="/people" replace />} />
         <Route path="/admin/audit" element={<Guard roles={['SUPER_ADMIN']}><Audit /></Guard>} />
-        <Route path="/admin/attendance" element={<Guard roles={['SUPER_ADMIN']}><PageHeader eyebrow="Super Admin" sample="P1" title="Attendance Analytics" subtitle="Live status · refreshes automatically" /><Card><div className="px-5 pt-5 pb-2 flex items-center gap-2 text-[13px] text-ink-500"><Clock size={15} /> All employees today</div><LiveTable /></Card></Guard>} />
+        <Route path="/admin/attendance" element={<Guard roles={['SUPER_ADMIN']}><AttendanceAdmin /></Guard>} />
         <Route path="/admin/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />
         <Route path="/admin/settings" element={<Guard roles={['SUPER_ADMIN']}><Policy /></Guard>} />
         {['/app/documents', '/app/appraisal', '/app/resignation', '/hr/onboarding', '/hr/letters', '/hr/exits', '/admin/appraisals', '/manager/reviews'].map((p) => (

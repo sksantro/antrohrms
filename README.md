@@ -68,7 +68,7 @@ In development, emails (such as invites) are printed to the API server's console
 | Phase | Status |
 |---|---|
 | **P0 Platform foundation** | Done: see [docs/PHASE_0_ACCEPTANCE.md](docs/PHASE_0_ACCEPTANCE.md) |
-| P1 Attendance pilot | UI only, on sample data |
+| **P1 Attendance pilot** | Done: see [docs/PHASE_1_ACCEPTANCE.md](docs/PHASE_1_ACCEPTANCE.md) |
 | P2–P5 | UI for several screens on sample data; pages marked **Sample data** in the app |
 
 ## Layout
@@ -80,8 +80,10 @@ backend/
   accounts/    users, roles, invites, login/logout/activate/me, role permissions
   employees/   departments, employee master, directory API, roles API
   payroll/     salary versions (Super Admin only)
+  attendance/  event ledger, geofence, check-in/breaks/check-out, corrections, live board
 frontend/src/
   lib/api.ts   typed API client (session cookie + CSRF)
   lib/auth.tsx session state, roles from the server
-  pages/       screens; Login, Activate, People and Audit Trail are live
+  lib/attendance.ts  today's state, server-anchored timers, geolocation
+  pages/       screens; Login, Activate, People, Attendance, Command Center and Audit Trail are live
 ```

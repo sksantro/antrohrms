@@ -78,9 +78,9 @@ class EmployeeViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.C
         roles = data.pop("roles")
         if not request.user.has_role(Role.SUPER_ADMIN) and set(roles) - {Role.EMPLOYEE}:
             raise PermissionDenied("Only the Super Admin can grant roles.")
-        emp = create_employee(actor=request.user, data=data, roles=roles, request=request)
+        emp, link = create_employee(actor=request.user, data=data, roles=roles, request=request)
         emp = self.get_queryset().get(pk=emp.pk)
-        return Response(EmployeeSerializer(emp).data, status=201)
+        return Response({**EmployeeSerializer(emp).data, "invite_url": link}, status=201)
 
     def partial_update(self, request, pk=None):
         emp = self.get_object()
@@ -125,8 +125,8 @@ class EmployeeViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.C
         emp = self.get_object()
         if emp.user.has_usable_password():
             raise BusinessRuleError("ALREADY_ACTIVATED", "This employee has already activated their account.")
-        send_invite(user=emp.user, actor=request.user, request=request)
-        return Response({"ok": True})
+        invite, link = send_invite(user=emp.user, actor=request.user, request=request)
+        return Response({"invite_url": link, "expires_at": invite.expires_at})
 
 
 class RoleSerializer(serializers.Serializer):

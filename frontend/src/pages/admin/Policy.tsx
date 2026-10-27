@@ -1,7 +1,9 @@
 import clsx from 'clsx'
-import { Clock, Coffee, MapPin, Save, Scale, Sun, Wallet } from 'lucide-react'
-import { useState } from 'react'
+import { Clock, Coffee, Crosshair, MapPin, Save, Scale, Sun, Wallet } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Card, CardHeader, PageHeader, Pill } from '../../components/ui'
+import { api, ApiError, type OfficeSiteDTO } from '../../lib/api'
+import { readLocation } from '../../lib/attendance'
 import { useStore } from '../../lib/store'
 
 const TABS = [
@@ -57,7 +59,7 @@ export default function Policy() {
   const current = TABS.find((t) => t.id === tab)!
   return (
     <>
-      <PageHeader eyebrow="Super Admin" title="Policy Center" sample="P1" subtitle="Every save creates a new effective-dated version. Statutory minimums can’t be undercut." />
+      <PageHeader eyebrow="Super Admin" title="Policy Center" subtitle="Every save creates a new effective-dated version. Statutory minimums can’t be undercut." />
       <div className="grid lg:grid-cols-[240px_minmax(0,1fr)] gap-6">
         <Card className="p-2 h-fit">
           {TABS.map((t) => (
@@ -66,8 +68,8 @@ export default function Policy() {
             </button>
           ))}
         </Card>
-        <Card className="animate-fade-up" key={tab}>
-          <CardHeader icon={current.icon} title={current.label} subtitle="Effective from 01 Nov 2026 · last edited by Aarav Mehta"
+        {tab === 'geo' ? <GeofenceCard /> : <Card className="animate-fade-up" key={tab}>
+          <CardHeader icon={current.icon} title={<span className="flex items-center gap-2">{current.label}<span className="text-[10px] font-semibold uppercase tracking-wide rounded-full px-2 py-0.5 bg-amber-100 text-amber-800">Sample data · editing in P2</span></span>} subtitle="Effective from 01 Nov 2026 · last edited by Aarav Mehta"
             action={<button className="btn-primary btn-sm" onClick={() => toast({ tone: 'success', title: 'Policy version saved', body: 'Effective 01 Nov 2026. Logged in audit trail.' })}><Save size={15} /> Save version</button>} />
           <div className="p-5 pt-2 grid md:grid-cols-2 gap-4">
             {FIELDS[tab].map((f) => (
@@ -85,8 +87,80 @@ export default function Policy() {
               </div>
             ))}
           </div>
-        </Card>
+        </Card>}
       </div>
     </>
+  )
+}
+
+function GeofenceCard() {
+  const { toast } = useStore()
+  const [site, setSite] = useState<OfficeSiteDTO | null>(null)
+  const [f, setF] = useState({ name: '', address: '', latitude: '', longitude: '', radius_m: '50' })
+  const [err, setErr] = useState<ApiError | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [locating, setLocating] = useState(false)
+  useEffect(() => {
+    api.officeSite().then((s) => {
+      setSite(s)
+      setF({ name: s.name, address: s.address, latitude: s.latitude ?? '', longitude: s.longitude ?? '', radius_m: String(s.radius_m) })
+    }).catch(setErr)
+  }, [])
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const here = async () => {
+    setLocating(true)
+    const r = await readLocation()
+    setLocating(false)
+    if (r.location) {
+      setF((x) => ({ ...x, latitude: r.location!.latitude.toFixed(6), longitude: r.location!.longitude.toFixed(6) }))
+      toast({ tone: 'info', title: `Location filled (±${r.location.accuracy_m} m)`, body: r.location.accuracy_m > 50 ? 'Accuracy is low; try again near a window, or paste coordinates from Google Maps.' : 'Save to apply.' })
+    } else toast({ tone: 'error', title: 'Couldn’t read your location', body: r.location_error })
+  }
+  const save = async () => {
+    setBusy(true); setErr(null)
+    try {
+      const s = await api.updateOfficeSite({ name: f.name, address: f.address, latitude: f.latitude || null, longitude: f.longitude || null, radius_m: Number(f.radius_m) })
+      setSite(s)
+      toast({ tone: 'success', title: 'Office location saved', body: 'New check-ins are verified against it. Logged in the audit trail.' })
+    } catch (e) { if (e instanceof ApiError) setErr(e) } finally { setBusy(false) }
+  }
+  const fe = (k: string) => err?.fieldErrors[k]?.[0]
+  const configured = site?.latitude && site?.longitude
+  const field = (k: keyof typeof f, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
+    <div>
+      <label className="label" htmlFor={`geo-${k}`}>{label}</label>
+      <input id={`geo-${k}`} className="input font-semibold" value={f[k]} onChange={set(k)} {...props} />
+      {fe(k) && <p className="text-[12px] text-rose-600 mt-1">{fe(k)}</p>}
+    </div>
+  )
+  return (
+    <Card className="animate-fade-up">
+      <CardHeader icon={MapPin} title="Office geofence" subtitle={configured ? 'Check-ins are verified against this location' : 'Not set yet: every check-in goes to your review queue until you set it'}
+        action={<button className="btn-primary btn-sm" disabled={busy || !site} onClick={save}><Save size={15} /> Save</button>} />
+      {!site && !err ? <div className="m-5 h-40 rounded-xl bg-ink-50 animate-pulse" /> : (
+        <div className="p-5 pt-2 space-y-4">
+          {err && !Object.keys(err.fieldErrors).length && <div role="alert" className="rounded-xl bg-rose-50 text-rose-700 px-3.5 py-3 text-[13px]">{err.message}</div>}
+          {!configured && <div className="rounded-xl bg-amber-50 text-amber-800 px-3.5 py-3 text-[13px]">Stand inside the office and click <b>Use my current location</b>, or paste coordinates from Google Maps (right-click the building, then copy the numbers).</div>}
+          <div className="grid md:grid-cols-2 gap-4">
+            {field('name', 'Site name')}
+            {field('address', 'Address')}
+            {field('latitude', 'Latitude', { inputMode: 'decimal', placeholder: 'e.g. 17.4xxxxx' })}
+            {field('longitude', 'Longitude', { inputMode: 'decimal', placeholder: 'e.g. 78.3xxxxx' })}
+            <div>
+              <label className="label" htmlFor="geo-radius">Allowed radius</label>
+              <div className="relative">
+                <input id="geo-radius" type="number" min={10} max={1000} className="input font-semibold" value={f.radius_m} onChange={set('radius_m')} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-ink-400">metres</span>
+              </div>
+              {fe('radius_m') && <p className="text-[12px] text-rose-600 mt-1">{fe('radius_m')}</p>}
+              <p className="text-[12px] text-ink-400 mt-1.5">A check-in is verified only if distance + the browser’s reported accuracy fits inside this radius. Laptops on Wi-Fi often report ±30–100 m.</p>
+            </div>
+            <div className="flex items-end">
+              <button className="btn-outline w-full" onClick={here} disabled={locating}><Crosshair size={16} /> {locating ? 'Reading location…' : 'Use my current location'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
   )
 }

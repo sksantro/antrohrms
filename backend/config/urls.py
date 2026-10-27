@@ -22,6 +22,7 @@ api = [
     path("admin/compensation/<uuid:employee_id>", CompensationView.as_view()),
     path("admin/audit", common.AuditListView.as_view()),
     path("admin/policies", common.PolicyListView.as_view()),
+    path("", include("attendance.urls")),
     path("", include(router.urls)),
 ]
 
