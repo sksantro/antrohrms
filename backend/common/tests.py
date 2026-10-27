@@ -25,3 +25,12 @@ class BootstrapAdminTests(TestCase):
         self.assertTrue(u.check_password("Very-strong-pass-42"))
         self.assertIn("SUPER_ADMIN", u.role_set)
         self.assertEqual(u.employee.employee_code, "APT-0001")
+
+
+class LegacyNameTests(TestCase):
+    def test_names_stay_within_postgres_limit_and_unique(self):
+        from common.management.commands.migrate import legacy_name
+        self.assertEqual(legacy_name("accounts_user"), "old_accounts_user")
+        a, b = legacy_name("x" * 60 + "_a"), legacy_name("x" * 60 + "_b")
+        self.assertLessEqual(len(a), 63)
+        self.assertNotEqual(a, b)
