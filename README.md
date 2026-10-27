@@ -1,153 +1,87 @@
 # Antro HRMS
 
-Monorepo for the Antro HRMS payroll and human resource management platform.
+Internal HRMS for Antro-Pai Technology Pvt. Ltd., built from `ANTRO_HRMS_MASTER_BRD.pdf` v1.0.
 
-## Project structure
+| Layer | Stack |
+|---|---|
+| Web | React 19 + TypeScript + Vite + Tailwind + Lucide (`frontend/`) |
+| API | Django 5.2 LTS + Django REST Framework (`backend/`) |
+| Database | PostgreSQL 17 (Docker, `docker-compose.yml`) |
 
-```
-antro-hrms/
-├── backend/          # Django REST API
-├── frontend/         # React + TypeScript + Vite
-└── docs/             # Project documentation
-```
-
-## Tech stack
-
-| Layer    | Stack |
-|----------|-------|
-| Backend  | Django, Django REST Framework, PostgreSQL, JWT |
-| Frontend | React, TypeScript, Vite, React Router |
-
-## Prerequisites
-
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL 14+
-
-## Backend setup
+## First-time setup
 
 ```bash
-cd backend
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# macOS / Linux
-source venv/bin/activate
-
-pip install -r requirements.txt
-cp .env.example .env
+docker compose up -d
 ```
-
-Update `.env` with your PostgreSQL credentials and a secure `SECRET_KEY`.
-
-Create the database:
-
-```sql
-CREATE DATABASE antro_hrms;
-```
-
-For **local development without PostgreSQL**, use SQLite (default in `.env.example`):
-
-```env
-DB_ENGINE=sqlite
-```
-
-For production, switch to PostgreSQL:
-
-```env
-DB_ENGINE=postgresql
-DB_NAME=antro_hrms
-DB_USER=postgres
-DB_PASSWORD=your-password
-DB_HOST=localhost
-DB_PORT=5432
-```
-
-Run migrations and seed demo users:
 
 ```bash
-python manage.py migrate
-python manage.py seed_roles
-python manage.py runserver
+python -m venv ~/.virtualenvs/antro-hrms-api
 ```
-
-API base URL: `http://localhost:8000/api`
-
-### Health check
 
 ```bash
-curl http://localhost:8000/api/health/
+~/.virtualenvs/antro-hrms-api/Scripts/python -m pip install -r backend/requirements.txt
 ```
 
-Expected response:
-
-```json
-{
-  "status": "ok",
-  "service": "antro-hrms"
-}
-```
-
-### Authentication endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/login/` | Obtain JWT access/refresh tokens and user profile |
-| POST | `/api/auth/token/` | Legacy alias for login |
-| POST | `/api/auth/token/refresh/` | Refresh access token |
-| GET | `/api/accounts/me/` | Get current authenticated user |
-| GET/PATCH | `/api/accounts/me/` | View/update own profile |
-| POST | `/api/accounts/me/change-password/` | Change own password |
-| GET | `/api/accounts/me/permissions/` | Get role permissions summary |
-| GET/POST | `/api/accounts/users/` | List/create users (Super Admin) |
-| GET/PATCH | `/api/accounts/users/<id>/` | View/update user (Super Admin) |
-
-## Frontend setup
+Copy `backend/.env.example` to `backend/.env`, then set `DJANGO_SECRET_KEY` and `SEED_DEMO_PASSWORD`.
 
 ```bash
-cd frontend
-npm install
-cp .env.example .env
-npm run dev
+~/.virtualenvs/antro-hrms-api/Scripts/python backend/manage.py migrate
 ```
 
-App URL: `http://localhost:5173`
+```bash
+~/.virtualenvs/antro-hrms-api/Scripts/python backend/manage.py seed_demo
+```
 
-### Environment variables
+```bash
+npm --prefix frontend install
+```
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `VITE_API_BASE_URL` | Backend API base URL | `http://localhost:8000/api` |
+## Run
 
-## Django apps
+Start the API on port 8000, then the web app on port 5174 (it proxies `/api` to Django):
 
-| App | Purpose |
-|-----|---------|
-| `accounts` | Authentication and user roles |
-| `employees` | Employee master data |
-| `attendance` | Attendance tracking |
-| `leaves` | Leave management |
-| `payroll` | Payroll processing |
-| `documents` | Document management |
-| `policies` | HR policies |
-| `settings_app` | System settings |
-| `audit_logs` | Audit trail |
+```bash
+~/.virtualenvs/antro-hrms-api/Scripts/python backend/manage.py runserver 127.0.0.1:8000
+```
 
-## User roles
+```bash
+npm --prefix frontend run dev
+```
 
-- Super Admin
-- HR Admin
-- Finance Admin
-- Employee
+Open http://localhost:5174 and sign in as any seeded person, e.g. `aarav@antropai.example` (Super Admin) or `riya@antropai.example` (HR), using `SEED_DEMO_PASSWORD` from `backend/.env`. All seeded people are synthetic.
 
-## Development notes
+In development, emails (such as invites) are printed to the API server's console instead of being sent.
 
-- This repository contains base architecture only. Business features will be added milestone by milestone.
-- Frontend uses protected routes with role-based access.
-- Backend modules are wired with placeholder endpoints and ready for feature development.
+## Test
 
-## License
+```bash
+~/.virtualenvs/antro-hrms-api/Scripts/python backend/manage.py test
+```
 
-Proprietary — Antro HRMS
+## CI/CD
+
+- `.github/workflows/ci.yml` runs on every push and pull request: Django checks, a migrations check and the tests on PostgreSQL, plus frontend lint and build.
+- `.github/workflows/deploy.yml` deploys to the Lightsail server **only on pushes to `production`**.
+
+## Phase status
+
+| Phase | Status |
+|---|---|
+| **P0 Platform foundation** | Done: see [docs/PHASE_0_ACCEPTANCE.md](docs/PHASE_0_ACCEPTANCE.md) |
+| P1 Attendance pilot | UI only, on sample data |
+| P2–P5 | UI for several screens on sample data; pages marked **Sample data** in the app |
+
+## Layout
+
+```
+backend/
+  config/      settings (env-driven), urls
+  common/      organization, office site, policy versions, audit log, email outbox, errors, seed_demo
+  accounts/    users, roles, invites, login/logout/activate/me, role permissions
+  employees/   departments, employee master, directory API, roles API
+  payroll/     salary versions (Super Admin only)
+frontend/src/
+  lib/api.ts   typed API client (session cookie + CSRF)
+  lib/auth.tsx session state, roles from the server
+  pages/       screens; Login, Activate, People and Audit Trail are live
+```

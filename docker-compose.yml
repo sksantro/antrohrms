@@ -1,0 +1,19 @@
+# Local development services (BRD §22.2). Production uses a managed PostgreSQL.
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: antro-hrms-db
+    environment:
+      POSTGRES_DB: antro_hrms
+      POSTGRES_USER: antro
+      POSTGRES_PASSWORD: antro_dev_only
+    ports:
+      - "5433:5432"
+    volumes:
+      - antro_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U antro -d antro_hrms"]
+      interval: 3s
+      retries: 20
+volumes:
+  antro_pgdata:

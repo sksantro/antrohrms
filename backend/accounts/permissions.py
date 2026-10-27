@@ -1,70 +1,20 @@
+"""Role checks. Every endpoint checks role AND object scope on the server (BRD §1.1 Least privilege)."""
 from rest_framework.permissions import BasePermission
 
-from accounts.models import User
+from .models import Role
 
 
-class IsSuperAdmin(BasePermission):
-    message = 'Super admin access required.'
+def has_role(*roles: str) -> type[BasePermission]:
+    class _HasRole(BasePermission):
+        message = "You don't have access to this."
 
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(user and user.is_authenticated and user.is_super_admin)
+        def has_permission(self, request, view):
+            u = request.user
+            return bool(u and u.is_authenticated and u.is_active and u.has_role(*roles))
 
-
-class IsHRAdmin(BasePermission):
-    message = 'HR admin access required.'
-
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(user and user.is_authenticated and user.is_hr_admin)
+    _HasRole.__name__ = "HasRole_" + "_".join(roles)
+    return _HasRole
 
 
-class IsManager(BasePermission):
-    message = 'Manager access required.'
-
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(user and user.is_authenticated and user.is_manager)
-
-
-class IsFinance(BasePermission):
-    message = 'Finance access required.'
-
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(user and user.is_authenticated and user.is_finance)
-
-
-class IsEmployee(BasePermission):
-    message = 'Employee access required.'
-
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(user and user.is_authenticated and user.is_employee_user)
-
-
-class IsHRorSuperAdmin(BasePermission):
-    message = 'HR admin or super admin access required.'
-
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(
-            user
-            and user.is_authenticated
-            and (user.is_super_admin or user.is_hr_admin)
-        )
-
-
-class HasAnyRole(BasePermission):
-    """Allow access when the user has one of the configured roles."""
-
-    allowed_roles: set[str] = set()
-    message = 'You do not have permission to perform this action.'
-
-    def has_permission(self, request, view):
-        user = request.user
-        if not user or not user.is_authenticated:
-            return False
-        if user.is_superuser or user.role == User.Role.SUPER_ADMIN:
-            return True
-        return user.role in self.allowed_roles
+IsSuperAdmin = has_role(Role.SUPER_ADMIN)
+IsSuperAdminOrHR = has_role(Role.SUPER_ADMIN, Role.HR_OPERATIONS)

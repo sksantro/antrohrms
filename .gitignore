@@ -1,32 +1,47 @@
-# Dependencies
-node_modules/
-
-# Build output
-dist/
-build/
-
-# Environment
+# ── Secrets & local config (never commit) ─────────────────────
 .env
-.env.local
+.env.*
+!.env.example
+*.pem
+*.key
 
-# Logs
-*.log
-npm-debug.log*
+# ── Node / Vite ───────────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+.vite/
+coverage/
 
-# IDE
-.idea/
-.vscode/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Python (backend)
-backend/venv/
-backend/.venv/
-backend/__pycache__/
-backend/**/__pycache__/
-backend/.env
-backend/db.sqlite3
+# ── Python / Django ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 backend/staticfiles/
 backend/media/
+
+# ── Logs ──────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Editors & OS ──────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.claude/settings.local.json
+*.suo
+*.sw?
+.DS_Store
+Thumbs.db
+desktop.ini

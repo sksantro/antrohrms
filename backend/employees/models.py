@@ -1,106 +1,76 @@
-import re
-from datetime import timedelta
+import calendar
+import uuid
+from datetime import date
 
 from django.conf import settings
 from django.db import models
 
 
-class Employee(models.Model):
-    class Gender(models.TextChoices):
-        MALE = 'MALE', 'Male'
-        FEMALE = 'FEMALE', 'Female'
-        OTHER = 'OTHER', 'Other'
+def add_months(d: date, months: int) -> date:
+    """Calendar-month addition keeping month-end edge cases (31 Jan + 1 → 28/29 Feb) — BRD §3.3."""
+    m = d.month - 1 + months
+    y, m = d.year + m // 12, m % 12 + 1
+    return date(y, m, min(d.day, calendar.monthrange(y, m)[1]))
 
+
+class Department(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey("common.Organization", on_delete=models.PROTECT)
+    name = models.CharField(max_length=80)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["organization", "name"], name="uniq_department")]
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class EmployeeCodeSequence(models.Model):
+    organization = models.OneToOneField("common.Organization", on_delete=models.PROTECT, primary_key=True)
+    prefix = models.CharField(max_length=10, default="APT")
+    next_value = models.PositiveIntegerField(default=1)
+
+
+class Employee(models.Model):
     class EmploymentType(models.TextChoices):
-        FULL_TIME = 'FULL_TIME', 'Full Time'
-        INTERN = 'INTERN', 'Intern'
-        CONTRACT = 'CONTRACT', 'Contract'
-        CONSULTANT = 'CONSULTANT', 'Consultant'
+        FULL_TIME = "FULL_TIME"
+        INTERN = "INTERN"
+        CONTRACT = "CONTRACT"
 
     class Status(models.TextChoices):
-        ACTIVE = 'ACTIVE', 'Active'
-        INACTIVE = 'INACTIVE', 'Inactive'
-        RESIGNED = 'RESIGNED', 'Resigned'
-        TERMINATED = 'TERMINATED', 'Terminated'
+        PREBOARDING = "PREBOARDING"
+        PROBATION = "PROBATION"
+        ACTIVE_CONFIRMED = "ACTIVE_CONFIRMED"
+        NOTICE_PERIOD = "NOTICE_PERIOD"
+        EXITED = "EXITED"
+        INACTIVE = "INACTIVE"
 
-    class Department(models.TextChoices):
-        SALES_MARKETING = 'Sales & Marketing', 'Sales & Marketing'
-        HR = 'HR', 'HR'
-        TECHNOLOGY = 'Technology', 'Technology'
-        OPERATIONS = 'Operations', 'Operations'
-        MANAGEMENT = 'Management', 'Management'
-        FINANCE = 'Finance', 'Finance'
-        ADMIN = 'Admin', 'Admin'
-
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='employee_profile',
-    )
-    employee_code = models.CharField(max_length=20, unique=True, editable=False)
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-    email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=20)
-    alternate_phone = models.CharField(max_length=20, blank=True)
-    gender = models.CharField(max_length=10, choices=Gender.choices, blank=True)
-    date_of_birth = models.DateField(null=True, blank=True)
-    joining_date = models.DateField()
-    department = models.CharField(max_length=100, choices=Department.choices)
-    designation = models.CharField(max_length=100)
-    reporting_manager = models.ForeignKey(
-        'self',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='direct_reports',
-    )
-    employment_type = models.CharField(
-        max_length=20,
-        choices=EmploymentType.choices,
-        default=EmploymentType.FULL_TIME,
-    )
-    internship_end_date = models.DateField(null=True, blank=True)
-    original_internship_end_date = models.DateField(null=True, blank=True)
-    internship_extended_days = models.PositiveIntegerField(default=0)
-    work_location = models.CharField(max_length=150, blank=True)
-    status = models.CharField(
-        max_length=20,
-        choices=Status.choices,
-        default=Status.ACTIVE,
-    )
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey("common.Organization", on_delete=models.PROTECT)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="employee")
+    employee_code = models.CharField(max_length=20, unique=True, null=True, blank=True)  # immutable once issued
+    display_name = models.CharField(max_length=120)
+    official_email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20, blank=True)
+    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="employees")
+    designation = models.CharField(max_length=120)
+    reporting_manager = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="direct_reports")
+    employment_type = models.CharField(max_length=12, choices=EmploymentType.choices, default=EmploymentType.FULL_TIME)
+    start_date = models.DateField()
+    probation_months = models.PositiveSmallIntegerField(default=3)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PROBATION)
     address = models.TextField(blank=True)
-    emergency_contact_name = models.CharField(max_length=150, blank=True)
-    emergency_contact_phone = models.CharField(max_length=20, blank=True)
+    emergency_contact = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ('employee_code',)
+        ordering = ["display_name"]
 
-    def __str__(self):
-        return f'{self.employee_code} - {self.full_name}'
-
-    @property
-    def full_name(self):
-        return f'{self.first_name} {self.last_name}'.strip()
+    def __str__(self) -> str:
+        return f"{self.display_name} ({self.employee_code or 'no code'})"
 
     @property
-    def is_intern(self):
-        return self.employment_type == self.EmploymentType.INTERN
-
-    @property
-    def revised_internship_end_date(self):
-        if not self.original_internship_end_date:
-            return self.internship_end_date
-        return self.original_internship_end_date + timedelta(days=self.internship_extended_days)
-
-    @classmethod
-    def generate_employee_code(cls):
-        codes = cls.objects.values_list('employee_code', flat=True)
-        max_num = 0
-        for code in codes:
-            match = re.match(r'ANTRO(\d+)', code)
-            if match:
-                max_num = max(max_num, int(match.group(1)))
-        return f'ANTRO{max_num + 1:03d}'
+    def probation_end(self) -> date:
+        return add_months(self.start_date, self.probation_months)

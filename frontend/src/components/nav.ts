@@ -1,0 +1,65 @@
+import {
+  BadgeCheck, Briefcase, CalendarDays, ClipboardCheck, Clock, FileSignature, FileText, Gauge, Inbox, LayoutDashboard,
+  Laptop, LogOut, Receipt, ScrollText, Settings2, Sparkles, Star, Sun, UserPlus, Users, Wallet, type LucideIcon,
+} from 'lucide-react'
+import type { Role } from '../lib/data'
+
+export interface NavItem { to: string; label: string; icon: LucideIcon; badge?: string; planned?: string }
+export interface NavSection { title: string; items: NavItem[] }
+
+const SELF: NavSection = {
+  title: 'My workspace',
+  items: [
+    { to: '/app/home', label: 'Home', icon: LayoutDashboard },
+    { to: '/app/attendance', label: 'My Attendance', icon: Clock },
+    { to: '/app/leave', label: 'My Leave', icon: CalendarDays },
+    { to: '/app/holidays', label: 'Holiday Calendar', icon: Sun },
+    { to: '/app/payslips', label: 'My Payslips', icon: Receipt },
+    { to: '/app/documents', label: 'My Documents', icon: FileText, planned: 'P3' },
+    { to: '/app/assets', label: 'My Assets', icon: Laptop },
+    { to: '/app/appraisal', label: 'My Appraisal', icon: Star, planned: 'P5' },
+    { to: '/app/resignation', label: 'My Resignation', icon: LogOut, planned: 'P4' },
+  ],
+}
+
+const HR: NavSection = {
+  title: 'HR operations',
+  items: [
+    { to: '/people', label: 'People', icon: Users },
+    { to: '/hr/recruitment', label: 'Recruitment', icon: Briefcase },
+    { to: '/hr/onboarding', label: 'Onboarding', icon: UserPlus, planned: 'P3' },
+    { to: '/hr/letters', label: 'Letter Drafts', icon: FileSignature, planned: 'P3' },
+    { to: '/hr/assets', label: 'Assets', icon: Laptop },
+    { to: '/hr/exits', label: 'Exit Checklist', icon: ClipboardCheck, planned: 'P4' },
+  ],
+}
+
+const ADMIN: NavSection = {
+  title: 'Command',
+  items: [
+    { to: '/admin', label: 'Command Center', icon: Gauge },
+    { to: '/admin/approvals', label: 'Approval Inbox', icon: Inbox, badge: 'approvals' },
+    { to: '/people', label: 'Employee Directory', icon: Users },
+    { to: '/admin/attendance', label: 'Attendance Analytics', icon: Clock },
+    { to: '/admin/payroll', label: 'Payroll', icon: Wallet },
+    { to: '/admin/appraisals', label: 'Appraisals', icon: Sparkles, planned: 'P5' },
+    { to: '/admin/settings', label: 'Policy Center', icon: Settings2 },
+    { to: '/admin/audit', label: 'Audit Trail', icon: ScrollText },
+  ],
+}
+
+const MANAGER: NavSection = {
+  title: 'My team',
+  items: [{ to: '/manager/reviews', label: 'Team Reviews', icon: BadgeCheck, planned: 'P5' }],
+}
+
+export function navFor(role: Role): NavSection[] {
+  switch (role) {
+    case 'SUPER_ADMIN': return [ADMIN, { ...HR, items: HR.items.filter((i) => i.to !== '/people') }, SELF]
+    case 'HR_OPERATIONS': return [SELF, HR]
+    case 'REPORTING_MANAGER': return [SELF, MANAGER]
+    default: return [SELF]
+  }
+}
+
+export const homeFor = (role: Role) => (role === 'SUPER_ADMIN' ? '/admin' : '/app/home')

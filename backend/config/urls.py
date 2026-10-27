@@ -1,36 +1,31 @@
-"""
-URL configuration for antro-hrms project.
-"""
-
-from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
-from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework.routers import DefaultRouter
 
-from accounts.views import ChangePasswordView, CustomTokenObtainPairView, LogoutView, MeView
-from config.views import health_check
+from accounts import views as auth
+from common import views as common
+from employees.views import DepartmentViewSet, EmployeeRolesView, EmployeeViewSet
+from payroll.views import CompensationView
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/health/', health_check, name='health-check'),
-    path('api/auth/login/', CustomTokenObtainPairView.as_view(), name='auth-login'),
-    path('api/auth/logout/', LogoutView.as_view(), name='auth-logout'),
-    path('api/auth/me/', MeView.as_view(), name='auth-me'),
-    path('api/auth/change-password/', ChangePasswordView.as_view(), name='auth-change-password'),
-    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
-    path('api/accounts/', include('accounts.urls')),
-    path('api/employees/', include('employees.urls')),
-    path('api/attendance/', include('attendance.urls')),
-    path('api/leaves/', include('leaves.urls')),
-    path('api/payroll/', include('payroll.urls')),
-    path('api/documents/', include('documents.urls')),
-    path('api/policies/', include('policies.urls')),
-    path('api/leads/', include('leads.urls')),
-    path('api/sales/', include('leads.sales_urls')),
-    path('api/settings/', include('settings_app.urls')),
-    path('api/audit-logs/', include('audit_logs.urls')),
+router = DefaultRouter(trailing_slash=False)
+router.register("employees", EmployeeViewSet, basename="employee")
+router.register("departments", DepartmentViewSet, basename="department")
+
+api = [
+    path("health", common.HealthView.as_view()),
+    path("auth/csrf", auth.CsrfView.as_view()),
+    path("auth/login", auth.LoginView.as_view()),
+    path("auth/logout", auth.LogoutView.as_view()),
+    path("auth/me", auth.MeView.as_view()),
+    path("auth/activate", auth.ActivateView.as_view()),
+    path("admin/employees/<uuid:pk>/roles", EmployeeRolesView.as_view()),
+    path("admin/compensation/<uuid:employee_id>", CompensationView.as_view()),
+    path("admin/audit", common.AuditListView.as_view()),
+    path("admin/policies", common.PolicyListView.as_view()),
+    path("", include(router.urls)),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns = [
+    path("django-admin/", admin.site.urls),
+    path("api/v1/", include(api)),
+]

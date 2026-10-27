@@ -1,0 +1,5 @@
+# Normalise line endings in the repo; Windows checkouts may still use CRLF locally.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
