@@ -17,7 +17,7 @@ export default function Activate() {
   const token = params.get('token') ?? ''
   const { setMe } = useAuth()
   const nav = useNavigate()
-  const [info, setInfo] = useState<{ email: string; display_name: string } | null>(null)
+  const [info, setInfo] = useState<{ email: string; display_name: string; is_reset: boolean } | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
@@ -62,8 +62,8 @@ export default function Activate() {
         <div className="space-y-3"><div className="h-8 w-2/3 rounded-lg bg-ink-100 animate-pulse" /><div className="h-4 w-1/2 rounded bg-ink-100 animate-pulse" /></div>
       ) : (
         <form onSubmit={submit}>
-          <h2 className="text-[28px] font-bold">Welcome, {info.display_name.split(' ')[0]} 🎉</h2>
-          <p className="text-ink-500 mt-1.5">Set a password for <b className="text-ink-800">{info.email}</b> to activate your account.</p>
+          <h2 className="text-[28px] font-bold">{info.is_reset ? 'Reset your password' : <>Welcome, {info.display_name.split(' ')[0]} 🎉</>}</h2>
+          <p className="text-ink-500 mt-1.5">{info.is_reset ? 'Choose a new password for' : 'Set a password for'} <b className="text-ink-800">{info.email}</b>{info.is_reset ? '.' : ' to activate your account.'}</p>
           <FormError error={error} />
           <div className="mt-8 space-y-4">
             <div>
@@ -89,7 +89,7 @@ export default function Activate() {
             </label>
           </div>
           <button className="btn-primary w-full !h-12 mt-7 text-[15px]" disabled={!ok || busy}>
-            {busy ? <span className="size-4 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : <>Activate account <ArrowRight size={17} /></>}
+            {busy ? <span className="size-4 rounded-full border-2 border-white/40 border-t-white animate-spin" /> : <>{info.is_reset ? 'Save new password' : 'Activate account'} <ArrowRight size={17} /></>}
           </button>
         </form>
       )}

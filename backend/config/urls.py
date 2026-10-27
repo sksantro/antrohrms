@@ -18,6 +18,7 @@ api = [
     path("auth/logout", auth.LogoutView.as_view()),
     path("auth/me", auth.MeView.as_view()),
     path("auth/activate", auth.ActivateView.as_view()),
+    path("auth/change-password", auth.ChangePasswordView.as_view()),
     path("admin/employees/import", EmployeeImportView.as_view()),
     path("admin/employees/<uuid:pk>/roles", EmployeeRolesView.as_view()),
     path("admin/compensation/<uuid:employee_id>", CompensationView.as_view()),

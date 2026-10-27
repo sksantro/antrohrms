@@ -143,8 +143,5 @@ export const APPROVALS: Approval[] = [
   { id: 'a5', kind: 'Resignation', title: 'Resignation · last day 28 Nov', who: 'Tara Menon', meta: 'Notice 30 days', age: '3d' },
 ]
 
-export const NOTIFICATIONS = [
-  { id: 'n1', title: 'Your Sick Leave on 08–09 Oct was approved', time: '2d ago', unread: true },
-  { id: 'n2', title: 'September payslip is available', time: '4d ago', unread: true },
-  { id: 'n3', title: 'Holiday calendar 2026 published · choose 2 optional holidays', time: '1w ago', unread: false },
-]
+// Real notifications arrive with leave/payslip modules (P2); until then the bell is honestly empty.
+export const NOTIFICATIONS: { id: string; title: string; time: string; unread: boolean }[] = []

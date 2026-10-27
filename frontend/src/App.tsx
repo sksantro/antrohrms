@@ -24,6 +24,7 @@ import Recruitment from './pages/hr/Recruitment'
 import Leave from './pages/Leave'
 import Login from './pages/Login'
 import Payslips from './pages/Payslips'
+import Profile from './pages/Profile'
 
 // Client-side guard is UX only; the backend enforces permissions on every request (BRD §1.1).
 function Guard({ roles, children }: { roles: ServerRole[]; children: ReactNode }) {
@@ -40,10 +41,17 @@ function Guard({ roles, children }: { roles: ServerRole[]; children: ReactNode }
   )
 }
 
+// Sample-data previews are for the Super Admin only; everyone else sees "coming soon" instead of made-up numbers.
+function Preview({ children }: { children: ReactNode }) {
+  const { hasRole } = useAuth()
+  return hasRole('SUPER_ADMIN') ? <>{children}</> : <Planned />
+}
+
 function Planned() {
   const { role } = useStore()
+  const { hasRole } = useAuth()
   const { pathname } = useLocation()
-  const item = navFor(role).flatMap((s) => s.items).find((i) => i.to === pathname)
+  const item = navFor(role, hasRole('SUPER_ADMIN')).flatMap((s) => s.items).find((i) => i.to === pathname)
   return (
     <>
       <PageHeader eyebrow={`Phase ${item?.planned ?? ''}`} title={item?.label ?? 'Coming soon'} />
@@ -89,13 +97,14 @@ function AppRoutes() {
       <Route element={<Shell />}>
         <Route path="/app/home" element={<Home />} />
         <Route path="/app/attendance" element={<Attendance />} />
-        <Route path="/app/leave" element={<Leave />} />
-        <Route path="/app/holidays" element={<Holidays />} />
-        <Route path="/app/payslips" element={<Payslips />} />
-        <Route path="/app/assets" element={<MyAssets />} />
+        <Route path="/app/leave" element={<Preview><Leave /></Preview>} />
+        <Route path="/app/holidays" element={<Preview><Holidays /></Preview>} />
+        <Route path="/app/payslips" element={<Preview><Payslips /></Preview>} />
+        <Route path="/app/assets" element={<Preview><MyAssets /></Preview>} />
+        <Route path="/app/profile" element={<Profile />} />
         <Route path="/people" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Directory /></Guard>} />
-        <Route path="/hr/recruitment" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Recruitment /></Guard>} />
-        <Route path="/hr/assets" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HrAssets /></Guard>} />
+        <Route path="/hr/recruitment" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Preview><Recruitment /></Preview></Guard>} />
+        <Route path="/hr/assets" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Preview><HrAssets /></Preview></Guard>} />
         <Route path="/console" element={<Guard roles={['SUPER_ADMIN']}><CommandCenter /></Guard>} />
         <Route path="/console/approvals" element={<Guard roles={['SUPER_ADMIN']}><Approvals /></Guard>} />
         <Route path="/console/employees" element={<Navigate to="/people" replace />} />

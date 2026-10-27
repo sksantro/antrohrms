@@ -99,3 +99,41 @@ class ActivationTests(Fixture):
         _, invite, token = self.invite()
         self.assertNotEqual(invite.token_hash, token)
         self.assertEqual(len(mail.outbox), 0)  # Invite.issue alone sends nothing; the service queues email
+
+
+class PasswordTests(Fixture):
+    def login(self, email, password):
+        c = APIClient()
+        r = c.post("/api/v1/auth/login", {"email": email, "password": password}, format="json")
+        return c, r.status_code
+
+    def test_change_password(self):
+        c, _ = self.login("emp@test.example", PASSWORD)
+        other, _ = self.login("emp@test.example", PASSWORD)  # a second device
+        bad = c.post("/api/v1/auth/change-password", {"current_password": "wrong", "new_password": "Brand-new-pass-77"}, format="json")
+        self.assertIn("current_password", bad.data["field_errors"])
+        weak = c.post("/api/v1/auth/change-password", {"current_password": PASSWORD, "new_password": "123"}, format="json")
+        self.assertIn("new_password", weak.data["field_errors"])
+        ok = c.post("/api/v1/auth/change-password", {"current_password": PASSWORD, "new_password": "Brand-new-pass-77"}, format="json")
+        self.assertEqual(ok.status_code, 204)
+        self.assertEqual(c.get("/api/v1/auth/me").status_code, 200)       # this session stays signed in
+        self.assertEqual(other.get("/api/v1/auth/me").status_code, 401)   # other devices are signed out
+        self.assertEqual(self.login("emp@test.example", "Brand-new-pass-77")[1], 200)
+        self.assertTrue(AuditEvent.objects.filter(action="PASSWORD_CHANGED").exists())
+
+    def test_reset_link_for_activated_employee(self):
+        r = self.as_user(self.hr).post(f"/api/v1/employees/{self.emp.employee.pk}/resend-invite")
+        self.assertEqual(r.data["kind"], "reset")
+        token = r.data["invite_url"].split("token=")[1]
+        self.assertTrue(APIClient().get(f"/api/v1/auth/activate?token={token}").data["is_reset"])
+        self.assertEqual(self.login("emp@test.example", PASSWORD)[1], 200)  # old password works until the link is used
+        APIClient().post("/api/v1/auth/activate", {"token": token, "password": "Reset-pass-2026x", "accept_policy": True}, format="json")
+        self.assertEqual(self.login("emp@test.example", PASSWORD)[1], 422)
+        self.assertEqual(self.login("emp@test.example", "Reset-pass-2026x")[1], 200)
+
+    def test_hr_cannot_reset_super_admin_and_nobody_resets_former_staff(self):
+        self.assertEqual(self.as_user(self.hr).post(f"/api/v1/employees/{self.admin.employee.pk}/resend-invite").status_code, 403)
+        self.other.is_active = False
+        self.other.save()
+        r = self.as_user(self.admin).post(f"/api/v1/employees/{self.other.employee.pk}/resend-invite")
+        self.assertEqual(r.data["code"], "ACCOUNT_INACTIVE")

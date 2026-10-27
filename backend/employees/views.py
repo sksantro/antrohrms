@@ -128,10 +128,14 @@ class EmployeeViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.C
         if not self._is_staff():
             raise PermissionDenied()
         emp = self.get_object()
-        if emp.user.has_usable_password():
-            raise BusinessRuleError("ALREADY_ACTIVATED", "This employee has already activated their account.")
+        if not emp.user.is_active or emp.status == Employee.Status.EXITED:
+            raise BusinessRuleError("ACCOUNT_INACTIVE", "This person is a former employee, so they can't sign in.")
+        if emp.user.has_role(Role.SUPER_ADMIN) and not request.user.has_role(Role.SUPER_ADMIN):
+            raise PermissionDenied("Only a Super Admin can reset a Super Admin's password.")
+        # Not activated yet → invite; already activated → password reset. Both use the same single-use link.
+        kind = "reset" if emp.user.has_usable_password() else "invite"
         invite, link = send_invite(user=emp.user, actor=request.user, request=request)
-        return Response({"invite_url": link, "expires_at": invite.expires_at})
+        return Response({"invite_url": link, "expires_at": invite.expires_at, "kind": kind})
 
 
 class RoleSerializer(serializers.Serializer):

@@ -39,7 +39,7 @@ export default function Directory() {
   const [error, setError] = useState<ApiError | null>(null)
   const [view, setView] = useState<EmployeeDTO | null>(null)
   const [adding, setAdding] = useState(false)
-  const [invite, setInvite] = useState<{ name: string; url: string } | null>(null)
+  const [invite, setInvite] = useState<{ name: string; url: string; kind?: 'invite' | 'reset' } | null>(null)
   const [importing, setImporting] = useState(false)
   const [who, setWho] = useState<'current' | 'former'>('current')
 
@@ -96,7 +96,7 @@ export default function Directory() {
         </div>
       )}
 
-      <ProfileDrawer emp={view} isAdmin={isAdmin} onClose={() => setView(null)} onChanged={(e) => { setView(e); load() }} onInvite={(url) => view && setInvite({ name: view.display_name, url })} />
+      <ProfileDrawer emp={view} isAdmin={isAdmin} onClose={() => setView(null)} onChanged={(e) => { setView(e); load() }} onInvite={(url, kind) => view && setInvite({ name: view.display_name, url, kind })} />
       <AddEmployeeDrawer open={adding} isAdmin={isAdmin} depts={depts} onClose={() => setAdding(false)} onCreated={(name, url) => { setAdding(false); load(); setInvite({ name, url }) }} />
       <InviteLinkModal invite={invite} onClose={() => setInvite(null)} />
       {isAdmin && <ImportEmployees open={importing} onClose={() => setImporting(false)} onImported={load} />}
@@ -104,7 +104,7 @@ export default function Directory() {
   )
 }
 
-function ProfileDrawer({ emp, isAdmin, onClose, onChanged, onInvite }: { emp: EmployeeDTO | null; isAdmin: boolean; onClose: () => void; onChanged: (e: EmployeeDTO) => void; onInvite: (url: string) => void }) {
+function ProfileDrawer({ emp, isAdmin, onClose, onChanged, onInvite }: { emp: EmployeeDTO | null; isAdmin: boolean; onClose: () => void; onChanged: (e: EmployeeDTO) => void; onInvite: (url: string, kind: 'invite' | 'reset') => void }) {
   const { toast } = useStore()
   const { me } = useAuth()
   const [roles, setRoles] = useState<ServerRole[]>([])
@@ -124,13 +124,13 @@ function ProfileDrawer({ emp, isAdmin, onClose, onChanged, onInvite }: { emp: Em
     } finally { setBusy(false) }
   }
   const resend = async () => {
-    try { const r = await api.resendInvite(emp.id); onInvite(r.invite_url) }
+    try { const r = await api.resendInvite(emp.id); onInvite(r.invite_url, r.kind) }
     catch (e) { toast({ tone: 'error', title: 'Couldn’t resend invite', body: e instanceof ApiError ? e.message : undefined }) }
   }
 
   return (
     <Drawer open onClose={onClose} title={emp.display_name} subtitle={`${emp.designation} · ${emp.employee_code ?? 'no code yet'}`}
-      footer={<button className="btn-outline" onClick={resend}><Link2 size={15} /> Get invite link</button>}>
+      footer={<button className="btn-outline" onClick={resend}><Link2 size={15} /> Invite / reset link</button>}>
       <div className="flex items-center gap-4 mb-6">
         <Avatar name={emp.display_name} hue={hueOf(emp.official_email)} size={64} />
         <div className="space-y-1.5">
@@ -250,7 +250,7 @@ function AddEmployeeDrawer({ open, isAdmin, depts, onClose, onCreated }: { open:
 }
 
 /** Email isn't set up yet, so HR/Admin share the activation link themselves (valid 72 hours, single use). */
-function InviteLinkModal({ invite, onClose }: { invite: { name: string; url: string } | null; onClose: () => void }) {
+function InviteLinkModal({ invite, onClose }: { invite: { name: string; url: string; kind?: 'invite' | 'reset' } | null; onClose: () => void }) {
   const [copied, setCopied] = useState(false)
   useEffect(() => setCopied(false), [invite])
   if (!invite) return null
@@ -258,8 +258,8 @@ function InviteLinkModal({ invite, onClose }: { invite: { name: string; url: str
     try { await navigator.clipboard.writeText(invite.url); setCopied(true) } catch { setCopied(false) }
   }
   return (
-    <Modal open onClose={onClose} title={`Invite link for ${invite.name}`} footer={<button className="btn-primary" onClick={onClose}>Done</button>}>
-      <p className="text-[13.5px] text-ink-600 mb-3">Send this link to them privately (e.g. WhatsApp or Slack). They’ll set their own password. It works once and expires in 72 hours. Getting a new link cancels the old one.</p>
+    <Modal open onClose={onClose} title={`${invite.kind === 'reset' ? 'Password reset link' : 'Invite link'} for ${invite.name}`} footer={<button className="btn-primary" onClick={onClose}>Done</button>}>
+      <p className="text-[13.5px] text-ink-600 mb-3">Send this link to them privately (e.g. WhatsApp or Slack). {invite.kind === 'reset' ? 'They’ll choose a new password; their old one keeps working until they do.' : 'They’ll set their own password.'} It works once and expires in 72 hours. Getting a new link cancels the old one.</p>
       <div className="flex gap-2">
         <input readOnly className="input font-mono text-[12px]" value={invite.url} onFocus={(e) => e.currentTarget.select()} aria-label="Invite link" />
         <button className="btn-dark shrink-0" onClick={copy}>{copied ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy</>}</button>

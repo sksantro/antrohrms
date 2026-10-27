@@ -2,6 +2,7 @@
 from datetime import date
 from decimal import Decimal
 
+from django.core.cache import cache
 from rest_framework.test import APIClient, APITestCase
 
 from accounts.models import Role, RoleAssignment, User
@@ -38,6 +39,10 @@ class Fixture(APITestCase):
             reporting_manager=manager.employee if manager else None,
         )
         return u
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()  # rate-limit counters must not leak between tests
 
     def as_user(self, user: User) -> APIClient:
         c = APIClient()

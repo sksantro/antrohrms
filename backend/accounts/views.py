@@ -1,4 +1,4 @@
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.middleware.csrf import get_token
@@ -103,13 +103,14 @@ class ActivateView(APIView):
 
     def get(self, request):
         invite = self._invite(request.query_params.get("token", ""))
-        return Response({"email": invite.user.email, "display_name": invite.user.display_name, "expires_at": invite.expires_at})
+        return Response({"email": invite.user.email, "display_name": invite.user.display_name, "expires_at": invite.expires_at,
+                         "is_reset": invite.user.has_usable_password()})
 
     def post(self, request):
         s = ActivateSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         invite = Invite.objects.select_for_update().filter(token_hash=Invite.hash(s.validated_data["token"])).select_related("user").first()
-        if invite is None or not invite.is_usable:
+        if invite is None or not invite.is_usable or not invite.user.is_active:
             raise BusinessRuleError("INVITE_INVALID", "This invite link has expired or was already used. Ask HR or the Super Admin to send a new one.")
         if not s.validated_data["accept_policy"]:
             raise serializers.ValidationError({"accept_policy": ["Please accept the privacy and attendance policy to continue."]})
@@ -128,3 +129,34 @@ class ActivateView(APIView):
         audit(actor=user, action="AUTH_ACTIVATED", entity=user, request=request, organization=user.organization)
         login(request, user, backend="django.contrib.auth.backends.ModelBackend")
         return Response(me_payload(user))
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(trim_whitespace=False)
+    new_password = serializers.CharField(trim_whitespace=False)
+
+
+class ChangePasswordView(APIView):
+    """Signed-in user changes their own password. Other sessions are signed out (Django's session auth hash)."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
+
+    def post(self, request):
+        s = ChangePasswordSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        user = request.user
+        if not user.check_password(s.validated_data["current_password"]):
+            raise serializers.ValidationError({"current_password": ["That's not your current password."]})
+        new = s.validated_data["new_password"]
+        if new == s.validated_data["current_password"]:
+            raise serializers.ValidationError({"new_password": ["Choose a password different from your current one."]})
+        try:
+            validate_password(new, user)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({"new_password": list(e.messages)}) from e
+        user.set_password(new)
+        user.save(update_fields=["password"])
+        update_session_auth_hash(request, user)  # keep this session; others are invalidated
+        audit(actor=user, action="PASSWORD_CHANGED", entity=user, request=request, organization=user.organization)
+        return Response(status=204)

@@ -33,6 +33,7 @@ class Clock:
 
 class AttendanceBase(Fixture):
     def setUp(self):
+        super().setUp()
         self.clock = Clock(MON)
         patcher = mock.patch.object(svc, "now", self.clock)
         patcher.start()

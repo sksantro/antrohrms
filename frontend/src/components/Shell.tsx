@@ -24,7 +24,8 @@ export function Logo({ light }: { light?: boolean }) {
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { role, approvals } = useStore()
-  const sections = navFor(role)
+  const previews = useAuth().hasRole('SUPER_ADMIN')
+  const sections = navFor(role, previews)
   return (
     <nav className="flex flex-col h-full" aria-label="Main">
       <div className="px-5 h-16 flex items-center"><Logo /></div>
@@ -142,6 +143,7 @@ function Notifications() {
                 </div>
               </div>
             ))}
+            {NOTIFICATIONS.length === 0 && <p className="px-4 py-6 text-center text-[13px] text-ink-400">No notifications yet.</p>}
           </div>
         </>
       )}
@@ -151,14 +153,15 @@ function Notifications() {
 
 function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { role } = useStore()
+  const previews = useAuth().hasRole('SUPER_ADMIN')
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [i, setI] = useState(0)
   const dialog = useDialog(open)
   const list = useRef<HTMLUListElement>(null)
-  const items = useMemo(() => navFor(role).flatMap((s) => s.items.map((it) => ({ ...it, section: s.title })))
+  const items = useMemo(() => navFor(role, previews).flatMap((s) => s.items.map((it) => ({ ...it, section: s.title })))
     .filter((it, idx, all) => all.findIndex((x) => x.to === it.to) === idx)
-    .filter((it) => `${it.label} ${it.section}`.toLowerCase().includes(q.trim().toLowerCase())), [role, q])
+    .filter((it) => `${it.label} ${it.section}`.toLowerCase().includes(q.trim().toLowerCase())), [role, q, previews])
   useEffect(() => { if (open) { setQ(''); setI(0) } }, [open])
   useEffect(() => { list.current?.querySelector('[data-active]')?.scrollIntoView({ block: 'nearest' }) }, [i])
   if (!open) return null
@@ -228,7 +231,8 @@ export default function Shell() {
   }, [])
   useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
   const { role } = useStore()
-  const page = navFor(role).flatMap((s) => s.items).find((it) => it.to === loc.pathname)
+  const previews = useAuth().hasRole('SUPER_ADMIN')
+  const page = navFor(role, previews).flatMap((s) => s.items).find((it) => it.to === loc.pathname)
   useEffect(() => { document.title = page ? `${page.label} · antro.hr` : 'antro.hr' }, [page])
   const closeNav = useCallback(() => setMobileNav(false), [])
   useEscape(mobileNav, closeNav)
