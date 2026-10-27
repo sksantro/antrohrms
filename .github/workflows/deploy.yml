@@ -19,4 +19,12 @@ jobs:
 
       - name: Deploy to Lightsail Server
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "/home/ubuntu/deploy_antro_hrms.sh"
+          set -o pipefail
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "/home/ubuntu/deploy_antro_hrms.sh" 2>&1 | tee deploy.log
+
+      # Repeat the tail of a failed deploy as one error annotation so it shows on the run summary.
+      - name: Summarise deploy failure
+        if: failure()
+        run: |
+          msg=$(tail -n 40 deploy.log 2>/dev/null | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Deploy script output (last 40 lines)::${msg:-no output captured}"
