@@ -36,7 +36,7 @@ export default function CommandCenter() {
         <div className="space-y-6">
           <Card>
             <CardHeader title="Attendance exceptions" subtitle={items ? `${items.length} to review · never auto-deducted` : ''} icon={AlertTriangle}
-              action={<Link to="/admin/attendance" className="btn-ghost btn-sm">All <ArrowUpRight size={14} /></Link>} />
+              action={<Link to="/console/attendance" className="btn-ghost btn-sm">All <ArrowUpRight size={14} /></Link>} />
             <ExceptionsList items={items} onOpen={setItem} compact />
           </Card>
 
@@ -55,7 +55,7 @@ export default function CommandCenter() {
                 const I = KIND_ICON[a.kind]
                 return (
                   <li key={a.id}>
-                    <Link to="/admin/approvals" className="flex items-center gap-3 p-3 rounded-xl hover:bg-ink-50">
+                    <Link to="/console/approvals" className="flex items-center gap-3 p-3 rounded-xl hover:bg-ink-50">
                       <span className="size-9 rounded-xl bg-ink-50 text-ink-500 grid place-items-center shrink-0"><I size={16} /></span>
                       <div className="flex-1 min-w-0">
                         <div className="text-[13px] font-semibold text-ink-900 truncate">{a.title}</div>

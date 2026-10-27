@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 from rest_framework.routers import DefaultRouter
 
 from accounts import views as auth
@@ -30,4 +30,5 @@ api = [
 urlpatterns = [
     path("django-admin/", admin.site.urls),
     path("api/v1/", include(api)),
+    re_path(r"^admin/(?P<rest>[\w/-]*)$", common.legacy_admin_redirect),
 ]

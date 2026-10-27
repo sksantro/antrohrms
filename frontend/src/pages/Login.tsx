@@ -54,6 +54,7 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
+  const [caps, setCaps] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const from = (loc.state as { from?: string } | null)?.from
@@ -85,11 +86,16 @@ export default function Login() {
             </div>
           </div>
           <div>
-            <div className="flex justify-between"><label className="label" htmlFor="pw">Password</label><span className="text-[12.5px] text-ink-400" title="Self-service reset arrives with the email domain setup">Forgot? Ask HR to resend your invite</span></div>
+            <label className="label" htmlFor="pw">Password</label>
             <div className="relative">
               <Lock size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
-              <input id="pw" type={show ? 'text' : 'password'} required className="input !h-12 pl-10 pr-11" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <input id="pw" type={show ? 'text' : 'password'} required className="input !h-12 pl-10 pr-11" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)}
+                onKeyUp={(e) => setCaps(e.getModifierState('CapsLock'))} onBlur={() => setCaps(false)} aria-describedby="pw-hint" />
               <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700" aria-label={show ? 'Hide password' : 'Show password'}>{show ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+            </div>
+            <div id="pw-hint" className="flex justify-between gap-3 mt-1.5 text-[12.5px]">
+              <span className="text-amber-700 font-medium" aria-live="polite">{caps && 'Caps Lock is on'}</span>
+              <span className="text-ink-400" title="Self-service reset arrives with the email domain setup">Forgot it? Ask HR to resend your invite</span>
             </div>
           </div>
         </div>

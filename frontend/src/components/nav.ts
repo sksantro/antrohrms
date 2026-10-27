@@ -37,14 +37,14 @@ const HR: NavSection = {
 const ADMIN: NavSection = {
   title: 'Command',
   items: [
-    { to: '/admin', label: 'Command Center', icon: Gauge },
-    { to: '/admin/approvals', label: 'Approval Inbox', icon: Inbox, badge: 'approvals' },
+    { to: '/console', label: 'Command Center', icon: Gauge },
+    { to: '/console/approvals', label: 'Approval Inbox', icon: Inbox, badge: 'approvals' },
     { to: '/people', label: 'Employee Directory', icon: Users },
-    { to: '/admin/attendance', label: 'Attendance', icon: Clock },
-    { to: '/admin/payroll', label: 'Payroll', icon: Wallet },
-    { to: '/admin/appraisals', label: 'Appraisals', icon: Sparkles, planned: 'P5' },
-    { to: '/admin/settings', label: 'Policy Center', icon: Settings2 },
-    { to: '/admin/audit', label: 'Audit Trail', icon: ScrollText },
+    { to: '/console/attendance', label: 'Attendance', icon: Clock },
+    { to: '/console/payroll', label: 'Payroll', icon: Wallet },
+    { to: '/console/appraisals', label: 'Appraisals', icon: Sparkles, planned: 'P5' },
+    { to: '/console/settings', label: 'Policy Center', icon: Settings2 },
+    { to: '/console/audit', label: 'Audit Trail', icon: ScrollText },
   ],
 }
 
@@ -62,4 +62,4 @@ export function navFor(role: Role): NavSection[] {
   }
 }
 
-export const homeFor = (role: Role) => (role === 'SUPER_ADMIN' ? '/admin' : '/app/home')
+export const homeFor = (role: Role) => (role === 'SUPER_ADMIN' ? '/console' : '/app/home')

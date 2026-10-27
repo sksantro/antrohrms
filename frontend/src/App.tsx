@@ -96,14 +96,14 @@ function AppRoutes() {
         <Route path="/people" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Directory /></Guard>} />
         <Route path="/hr/recruitment" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Recruitment /></Guard>} />
         <Route path="/hr/assets" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HrAssets /></Guard>} />
-        <Route path="/admin" element={<Guard roles={['SUPER_ADMIN']}><CommandCenter /></Guard>} />
-        <Route path="/admin/approvals" element={<Guard roles={['SUPER_ADMIN']}><Approvals /></Guard>} />
-        <Route path="/admin/employees" element={<Navigate to="/people" replace />} />
-        <Route path="/admin/audit" element={<Guard roles={['SUPER_ADMIN']}><Audit /></Guard>} />
-        <Route path="/admin/attendance" element={<Guard roles={['SUPER_ADMIN']}><AttendanceAdmin /></Guard>} />
-        <Route path="/admin/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />
-        <Route path="/admin/settings" element={<Guard roles={['SUPER_ADMIN']}><Policy /></Guard>} />
-        {['/app/documents', '/app/appraisal', '/app/resignation', '/hr/onboarding', '/hr/letters', '/hr/exits', '/admin/appraisals', '/manager/reviews'].map((p) => (
+        <Route path="/console" element={<Guard roles={['SUPER_ADMIN']}><CommandCenter /></Guard>} />
+        <Route path="/console/approvals" element={<Guard roles={['SUPER_ADMIN']}><Approvals /></Guard>} />
+        <Route path="/console/employees" element={<Navigate to="/people" replace />} />
+        <Route path="/console/audit" element={<Guard roles={['SUPER_ADMIN']}><Audit /></Guard>} />
+        <Route path="/console/attendance" element={<Guard roles={['SUPER_ADMIN']}><AttendanceAdmin /></Guard>} />
+        <Route path="/console/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />
+        <Route path="/console/settings" element={<Guard roles={['SUPER_ADMIN']}><Policy /></Guard>} />
+        {['/app/documents', '/app/appraisal', '/app/resignation', '/hr/onboarding', '/hr/letters', '/hr/exits', '/console/appraisals', '/manager/reviews'].map((p) => (
           <Route key={p} path={p} element={<Planned />} />
         ))}
         <Route path="*" element={<Home404 />} />

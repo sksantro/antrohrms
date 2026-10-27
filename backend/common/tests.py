@@ -51,3 +51,11 @@ class LegacyNameTests(TestCase):
         a, b = legacy_name("x" * 60 + "_a"), legacy_name("x" * 60 + "_b")
         self.assertLessEqual(len(a), 63)
         self.assertNotEqual(a, b)
+
+
+class LegacyAdminRedirectTests(TestCase):
+    def test_old_admin_links_go_to_console(self):
+        for old, new in [("/admin/", "/console"), ("/admin/attendance", "/console/attendance"), ("/admin/settings?tab=geo", "/console/settings?tab=geo")]:
+            r = self.client.get(old)
+            self.assertEqual((r.status_code, r["Location"]), (302, new), old)
+        self.assertEqual(self.client.get("/api/v1/admin/audit").status_code, 401)  # API routes untouched

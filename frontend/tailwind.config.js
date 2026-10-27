@@ -27,11 +27,13 @@ export default {
       keyframes: {
         'fade-up': { from: { opacity: 0, transform: 'translateY(6px)' }, to: { opacity: 1, transform: 'none' } },
         'slide-in': { from: { transform: 'translateX(100%)' }, to: { transform: 'none' } },
+        'slide-in-left': { from: { transform: 'translateX(-100%)' }, to: { transform: 'none' } },
         pulse2: { '0%,100%': { opacity: 1 }, '50%': { opacity: .45 } },
       },
       animation: {
         'fade-up': 'fade-up .35s ease-out both',
         'slide-in': 'slide-in .28s cubic-bezier(.2,.8,.2,1) both',
+        'slide-in-left': 'slide-in-left .28s cubic-bezier(.2,.8,.2,1) both',
         pulse2: 'pulse2 1.8s ease-in-out infinite',
       },
     },

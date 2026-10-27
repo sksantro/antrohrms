@@ -57,6 +57,9 @@ export default function Leave() {
   const overlap = mine.some((l) => (l.status === 'SUBMITTED' || l.status === 'ADMIN_APPROVED') && from && l.from <= (half ? from : to) && l.to >= from)
   const insufficient = days > bal[type].available
   const valid = from && (half || to) && days > 0 && reason.trim().length >= 3 && !overlap && !insufficient
+  // Tells the person why Submit is still disabled instead of leaving them to guess.
+  const blocker = !from ? 'Pick a date to continue' : !half && !to ? 'Pick an end date' : days === 0 ? 'Those dates are all weekends or holidays'
+    : overlap || insufficient ? null : reason.trim().length < 3 ? 'Add a short reason for the approver' : null
 
   const submit = () => {
     applyLeave({ type, from, to: half ? from : to, days, reason })
@@ -114,13 +117,16 @@ export default function Leave() {
       </Card>
 
       <Drawer open={open} onClose={() => setOpen(false)} title="Apply for leave" subtitle="Weekends and holidays are excluded automatically"
-        footer={<><button className="btn-ghost" onClick={() => setOpen(false)}>Cancel</button><button className="btn-primary" disabled={!valid} onClick={submit}>Submit request</button></>}>
+        footer={<>
+          {blocker && <span className="mr-auto self-center text-[12.5px] text-ink-400" aria-live="polite">{blocker}</span>}
+          <button className="btn-ghost" onClick={() => setOpen(false)}>Cancel</button><button className="btn-primary" disabled={!valid} onClick={submit}>Submit request</button>
+        </>}>
         <div className="space-y-5">
           <div>
-            <div className="label">Leave type</div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="label" id="leave-type">Leave type</div>
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="leave-type">
               {(Object.keys(LEAVE_META) as LeaveType[]).map((t) => (
-                <button key={t} onClick={() => setType(t)} className={clsx('rounded-xl border p-3 text-left transition', type === t ? 'border-brand-500 bg-brand-50 ring-4 ring-brand-100' : 'border-ink-200 hover:border-ink-300')}>
+                <button key={t} role="radio" aria-checked={type === t} title={LEAVE_META[t].name} onClick={() => setType(t)} className={clsx('rounded-xl border p-3 text-left transition', type === t ? 'border-brand-500 bg-brand-50 ring-4 ring-brand-100' : 'border-ink-200 hover:border-ink-300')}>
                   <div className="font-display font-bold">{t}</div>
                   <div className="text-[11.5px] text-ink-500">{bal[t].available} available</div>
                 </button>
@@ -139,8 +145,11 @@ export default function Leave() {
             <span className="text-[13px] font-medium">{overlap ? 'Overlaps an existing request' : insufficient ? `Only ${bal[type].available} ${type} available` : 'Working days requested'}</span>
             <span className="font-display font-bold text-2xl">{days}</span>
           </div>
-          <div><label className="label" htmlFor="reason">Reason</label><textarea id="reason" className="input h-24 py-2 resize-none" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="A short note for the approver" /></div>
-          <button className="w-full rounded-xl border-2 border-dashed border-ink-200 p-4 text-ink-500 text-[13px] flex items-center justify-center gap-2 hover:border-brand-300 hover:text-brand-600"><Paperclip size={16} /> Attach supporting document (optional)</button>
+          <div>
+            <div className="flex justify-between"><label className="label" htmlFor="reason">Reason</label><span className="text-[12px] text-ink-400 tabular-nums">{reason.length}/300</span></div>
+            <textarea id="reason" maxLength={300} className="input h-24 py-2 resize-none" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="A short note for the approver" />
+          </div>
+          <button disabled title="Attachments upload once leave connects to the server (P2)" className="w-full rounded-xl border-2 border-dashed border-ink-200 p-4 text-ink-400 text-[13px] flex items-center justify-center gap-2 cursor-not-allowed"><Paperclip size={16} /> Attach supporting document · available in P2</button>
           <p className="text-[12px] text-ink-400 flex gap-2"><Info size={14} className="shrink-0 mt-0.5" /> Leave during probation is allowed as permitted by law. Final validation happens on the server.</p>
         </div>
       </Drawer>

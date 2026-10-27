@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { X, type LucideIcon } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { initials } from '../lib/format'
 
 export function PageHeader({ eyebrow, title, subtitle, actions, sample }: { eyebrow?: string; title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; sample?: string }) {
@@ -138,7 +138,7 @@ export function Segmented<T extends string>({ value, onChange, options }: { valu
   )
 }
 
-function useEscape(open: boolean, onClose: () => void) {
+export function useEscape(open: boolean, onClose: () => void) {
   useEffect(() => {
     if (!open) return
     const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -147,11 +147,43 @@ function useEscape(open: boolean, onClose: () => void) {
   }, [open, onClose])
 }
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+// Keeps keyboard focus inside an open overlay, locks page scroll, and hands focus back to the opener on close.
+export function useDialog(open: boolean) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const opener = document.activeElement as HTMLElement | null
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const el = ref.current
+    const first = el?.querySelector<HTMLElement>('[autofocus]') ?? el?.querySelector<HTMLElement>(FOCUSABLE)
+    first?.focus()
+    const trap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !el) return
+      const nodes = [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((n) => n.offsetParent !== null)
+      if (!nodes.length) return
+      const [a, z] = [nodes[0], nodes[nodes.length - 1]]
+      if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus() }
+      else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus() }
+    }
+    document.addEventListener('keydown', trap)
+    return () => {
+      document.removeEventListener('keydown', trap)
+      document.body.style.overflow = overflow
+      opener?.focus?.()
+    }
+  }, [open])
+  return ref
+}
+
 export function Drawer({ open, onClose, title, subtitle, children, footer, wide }: { open: boolean; onClose: () => void; title: string; subtitle?: string; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   useEscape(open, onClose)
+  const ref = useDialog(open)
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal aria-label={title}>
+    <div ref={ref} className="fixed inset-0 z-50" role="dialog" aria-modal aria-label={title}>
       <div className="absolute inset-0 bg-ink-950/30 backdrop-blur-[2px] animate-fade-up" onClick={onClose} />
       <div className={clsx('absolute right-0 top-0 h-full w-full bg-white shadow-2xl flex flex-col animate-slide-in', wide ? 'max-w-[980px]' : 'max-w-[480px]')}>
         <div className="flex items-start justify-between px-6 py-5 border-b border-ink-100">
@@ -170,9 +202,10 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, wide 
 
 export function Modal({ open, onClose, title, children, footer }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode }) {
   useEscape(open, onClose)
+  const ref = useDialog(open)
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4" role="dialog" aria-modal aria-label={title}>
+    <div ref={ref} className="fixed inset-0 z-50 grid place-items-center p-4" role="dialog" aria-modal aria-label={title}>
       <div className="absolute inset-0 bg-ink-950/35 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl animate-fade-up">
         <div className="px-6 pt-6"><h2 className="text-lg font-bold">{title}</h2></div>

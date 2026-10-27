@@ -1,4 +1,5 @@
 from django.db import connection
+from django.http import HttpResponseRedirect
 from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -58,3 +59,12 @@ class PolicyListView(generics.ListAPIView):
 
     def get_queryset(self):
         return PolicyVersion.objects.filter(organization=self.request.user.organization).select_related("created_by")
+
+
+def legacy_admin_redirect(request, rest: str = ""):
+    """The server's proxy sends /admin/* to Django, so the web app's Super Admin pages live at /console/*.
+    Old /admin/... links (bookmarks, history) are redirected there."""
+    target = "/console" + (f"/{rest}" if rest else "")
+    if request.META.get("QUERY_STRING"):
+        target += "?" + request.META["QUERY_STRING"]
+    return HttpResponseRedirect(target)
