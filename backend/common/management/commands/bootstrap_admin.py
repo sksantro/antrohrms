@@ -1,9 +1,12 @@
 """Create the organization and the first Super Admin on a fresh server.
 
 Usage (on the server, in backend/):  python manage.py bootstrap_admin --email you@company.com --name "Your Name"
-The password is typed at a hidden prompt; it is never passed on the command line or stored in plain text.
+The password is typed at a hidden prompt, or read from the ADMIN_BOOTSTRAP_PASSWORD environment variable
+(used by the GitHub "Create Super Admin" workflow). It is never passed on the command line.
+Refuses to run once any Super Admin exists — further admins are granted from People in the app.
 """
 import getpass
+import os
 from datetime import date
 
 from django.contrib.auth.password_validation import validate_password
@@ -29,11 +32,15 @@ class Command(BaseCommand):
 
     def handle(self, *args, email, name, designation, **opts):
         email = email.strip().lower()
+        if RoleAssignment.objects.filter(role=Role.SUPER_ADMIN).exists():
+            raise CommandError("A Super Admin already exists. Grant more admins from People in the app.")
         if User.objects.filter(email=email).exists():
             raise CommandError(f"{email} already exists.")
-        password = getpass.getpass("Password: ")
-        if password != getpass.getpass("Repeat password: "):
-            raise CommandError("Passwords don't match.")
+        password = os.environ.get("ADMIN_BOOTSTRAP_PASSWORD")
+        if not password:
+            password = getpass.getpass("Password: ")
+            if password != getpass.getpass("Repeat password: "):
+                raise CommandError("Passwords don't match.")
         try:
             validate_password(password)
         except ValidationError as e:

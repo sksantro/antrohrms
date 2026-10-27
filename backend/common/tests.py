@@ -26,6 +26,23 @@ class BootstrapAdminTests(TestCase):
         self.assertIn("SUPER_ADMIN", u.role_set)
         self.assertEqual(u.employee.employee_code, "APT-0001")
 
+    def test_env_password_and_refuses_second_admin(self):
+        from unittest import mock
+        from django.core.management import CommandError, call_command
+        from accounts.models import User
+        null = open(__import__("os").devnull, "w")
+        with mock.patch.dict("os.environ", {"ADMIN_BOOTSTRAP_PASSWORD": "Env-strong-pass-42"}):
+            call_command("bootstrap_admin", email="first@example.com", name="First", stdout=null)
+            self.assertTrue(User.objects.get(email="first@example.com").check_password("Env-strong-pass-42"))
+            with self.assertRaisesMessage(CommandError, "already exists"):
+                call_command("bootstrap_admin", email="second@example.com", name="Second", stdout=null)
+
+    def test_weak_env_password_rejected(self):
+        from unittest import mock
+        from django.core.management import CommandError, call_command
+        with mock.patch.dict("os.environ", {"ADMIN_BOOTSTRAP_PASSWORD": "short"}), self.assertRaises(CommandError):
+            call_command("bootstrap_admin", email="weak@example.com", name="Weak", stdout=open(__import__("os").devnull, "w"))
+
 
 class LegacyNameTests(TestCase):
     def test_names_stay_within_postgres_limit_and_unique(self):

@@ -1,0 +1,62 @@
+name: Create first Super Admin
+
+# One-time setup for a fresh production database. Run it from the Actions tab.
+# The password comes from the repository secret ADMIN_BOOTSTRAP_PASSWORD and is sent to the
+# server over SSH stdin, so it never appears in a command line or the logs.
+# The server command refuses to run if any Super Admin already exists.
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Super Admin email (used to sign in)
+        required: true
+      name:
+        description: Full name
+        required: true
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check inputs
+        env:
+          EMAIL: ${{ inputs.email }}
+          NAME: ${{ inputs.name }}
+          PW: ${{ secrets.ADMIN_BOOTSTRAP_PASSWORD }}
+        run: |
+          email_re='^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
+          name_re="^[A-Za-z][A-Za-z .'-]{1,79}$"
+          [[ "$EMAIL" =~ $email_re ]] || { echo "::error::That doesn't look like an email address."; exit 1; }
+          [[ "$NAME" =~ $name_re ]] || { echo "::error::Name may contain letters, spaces, dots, hyphens and apostrophes only."; exit 1; }
+          [[ -n "$PW" ]] || { echo "::error::Add the ADMIN_BOOTSTRAP_PASSWORD secret first (Settings → Secrets and variables → Actions)."; exit 1; }
+
+      - name: Prepare SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Create the Super Admin on the server
+        env:
+          EMAIL: ${{ inputs.email }}
+          NAME: ${{ inputs.name }}
+          PW: ${{ secrets.ADMIN_BOOTSTRAP_PASSWORD }}
+        run: |
+          # The remote script travels base64-encoded as the command; the three values travel on stdin.
+          remote=$(base64 -w0 <<'REMOTE'
+          set -euo pipefail
+          IFS= read -r EMAIL; IFS= read -r NAME; IFS= read -r ADMIN_BOOTSTRAP_PASSWORD
+          export ADMIN_BOOTSTRAP_PASSWORD
+          manage=$(find "$HOME" -maxdepth 3 -path '*/backend/manage.py' | head -1)
+          [ -n "$manage" ] || { echo "backend/manage.py not found under $HOME"; exit 1; }
+          cd "$(dirname "$manage")"
+          echo "Using $(pwd)"
+          PY=""
+          for py in venv/bin/python ../venv/bin/python; do [ -x "$py" ] && PY=$py && break; done
+          [ -n "$PY" ] || { echo "No virtualenv found next to backend/"; exit 1; }
+          "$PY" manage.py bootstrap_admin --email "$EMAIL" --name "$NAME"
+          REMOTE
+          )
+          printf '%s\n%s\n%s\n' "$EMAIL" "$NAME" "$PW" | ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "bash -c \"\$(echo $remote | base64 -d)\""
