@@ -24,7 +24,7 @@ class BootstrapAdminTests(TestCase):
         u = User.objects.get(email="owner@example.com")
         self.assertTrue(u.check_password("Very-strong-pass-42"))
         self.assertIn("SUPER_ADMIN", u.role_set)
-        self.assertEqual(u.employee.employee_code, "APT-0001")
+        self.assertEqual(u.employee.employee_code, "APT0001")
 
     def test_env_password_and_refuses_second_admin(self):
         from unittest import mock

@@ -1,6 +1,7 @@
 from django.db.models import Q
 from rest_framework import mixins, serializers, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -49,6 +50,10 @@ class EmployeeViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.C
             qs = qs.filter(department_id=dept)
         if status := self.request.query_params.get("status"):
             qs = qs.filter(status=status)
+        elif self.action == "list" and self.request.query_params.get("former") != "1":
+            qs = qs.exclude(status=Employee.Status.EXITED)  # former employees are listed only on request
+        if self.action == "list" and self.request.query_params.get("former") == "1":
+            qs = qs.filter(status=Employee.Status.EXITED)
         return qs
 
     def serializer_for(self, emp: Employee):
@@ -153,3 +158,28 @@ class EmployeeRolesView(APIView):
             RoleAssignment.objects.create(user=emp.user, role=r, granted_by=request.user)
         audit(actor=request.user, action="ROLES_CHANGED", entity=emp.user, before={"roles": sorted(old)}, after={"roles": sorted(new)}, request=request)
         return Response({"roles": sorted(new)})
+
+
+class EmployeeImportView(APIView):
+    """POST an .xlsx with commit=false for a preview (no writes), commit=true to import. Super Admin only."""
+
+    permission_classes = [IsSuperAdmin]
+    parser_classes = [MultiPartParser]
+    MAX_BYTES = 5 * 1024 * 1024
+
+    def post(self, request):
+        from . import importer
+
+        f = request.FILES.get("file")
+        if f is None:
+            raise BusinessRuleError("FILE_REQUIRED", "Choose an Excel (.xlsx) file to upload.")
+        if not f.name.lower().endswith(".xlsx") or f.size > self.MAX_BYTES:
+            raise BusinessRuleError("INVALID_FILE", "Upload an .xlsx file up to 5 MB.")
+        data = f.read()
+        try:
+            if request.data.get("commit") in ("true", "1", True):
+                return Response(importer.commit(data, actor=request.user, request=request), status=201)
+            result = importer.parse(data, request.user.organization)
+        except ValueError as e:
+            raise BusinessRuleError("INVALID_SHEET", str(e)) from e
+        return Response({**{k: v for k, v in result.items() if k != "rows"}, "rows": [r.as_dict() for r in result["rows"]]})

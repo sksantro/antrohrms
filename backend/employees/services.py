@@ -11,7 +11,7 @@ from .models import Employee, EmployeeCodeSequence
 def issue_employee_code(organization) -> str:
     """Gap-free, collision-free code under a row lock."""
     seq, _ = EmployeeCodeSequence.objects.select_for_update().get_or_create(organization=organization)
-    code = f"{seq.prefix}-{seq.next_value:04d}"
+    code = f"{seq.prefix}{seq.next_value:04d}"  # same shape as the existing sheet codes, e.g. APT0026
     seq.next_value += 1
     seq.save(update_fields=["next_value"])
     return code

@@ -1,7 +1,8 @@
 import clsx from 'clsx'
-import { AlertCircle, Check, Copy, Link2, Mail, RefreshCw, Search, Send, ShieldCheck, UserPlus, X } from 'lucide-react'
+import { AlertCircle, Check, Copy, FileSpreadsheet, Link2, Mail, RefreshCw, Search, Send, ShieldCheck, UserPlus, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { Avatar, Card, Drawer, EmptyState, Modal, PageHeader, Pill, type Tone } from '../../components/ui'
+import { Avatar, Card, Drawer, EmptyState, Modal, PageHeader, Pill, Segmented, type Tone } from '../../components/ui'
+import ImportEmployees from './ImportEmployees'
 import { api, ApiError, type Department, type EmployeeDTO, type ServerRole } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { fmtDate } from '../../lib/format'
@@ -39,18 +40,20 @@ export default function Directory() {
   const [view, setView] = useState<EmployeeDTO | null>(null)
   const [adding, setAdding] = useState(false)
   const [invite, setInvite] = useState<{ name: string; url: string } | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [who, setWho] = useState<'current' | 'former'>('current')
 
   const load = useCallback(() => {
     setError(null)
-    api.employees({ q: dq, department: dept }).then((p) => { setRows(p.results); setCount(p.count) }).catch(setError)
-  }, [dq, dept])
+    api.employees({ q: dq, department: dept, former: who === 'former' ? '1' : undefined }).then((p) => { setRows(p.results); setCount(p.count) }).catch(setError)
+  }, [dq, dept, who])
   useEffect(load, [load])
   useEffect(() => { api.departments().then(setDepts).catch(() => setDepts([])) }, [])
 
   return (
     <>
       <PageHeader eyebrow="People" title="Employee Directory" subtitle={rows ? `${count} ${count === 1 ? 'person' : 'people'}${dq || dept ? ' match' : ` across ${depts.length} departments`}` : 'Loading…'}
-        actions={<button className="btn-primary" onClick={() => setAdding(true)}><UserPlus size={17} /> Add employee</button>} />
+        actions={<>{isAdmin && <button className="btn-outline" onClick={() => setImporting(true)}><FileSpreadsheet size={16} /> Import from Excel</button>}<button className="btn-primary" onClick={() => setAdding(true)}><UserPlus size={17} /> Add employee</button></>} />
 
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <div className="relative w-full sm:w-80">
@@ -58,6 +61,7 @@ export default function Directory() {
           <input className="input pl-10" placeholder="Search name, code or role" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search employees" />
           {q && <button className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400" onClick={() => setQ('')} aria-label="Clear search"><X size={15} /></button>}
         </div>
+        <Segmented value={who} onChange={setWho} options={[{ value: 'current', label: 'Current' }, { value: 'former', label: 'Former' }]} />
         <div className="flex flex-wrap gap-1.5">
           {[{ id: '', name: 'All' }, ...depts].map((d) => (
             <button key={d.id} onClick={() => setDept(d.id)} className={clsx('h-9 px-3.5 rounded-full text-[13px] font-semibold transition', dept === d.id ? 'bg-ink-900 text-white' : 'bg-white ring-1 ring-ink-200 text-ink-600 hover:ring-ink-300')}>{d.name}</button>
@@ -95,6 +99,7 @@ export default function Directory() {
       <ProfileDrawer emp={view} isAdmin={isAdmin} onClose={() => setView(null)} onChanged={(e) => { setView(e); load() }} onInvite={(url) => view && setInvite({ name: view.display_name, url })} />
       <AddEmployeeDrawer open={adding} isAdmin={isAdmin} depts={depts} onClose={() => setAdding(false)} onCreated={(name, url) => { setAdding(false); load(); setInvite({ name, url }) }} />
       <InviteLinkModal invite={invite} onClose={() => setInvite(null)} />
+      {isAdmin && <ImportEmployees open={importing} onClose={() => setImporting(false)} onImported={load} />}
     </>
   )
 }

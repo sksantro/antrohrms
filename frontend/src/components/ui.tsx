@@ -147,13 +147,13 @@ function useEscape(open: boolean, onClose: () => void) {
   }, [open, onClose])
 }
 
-export function Drawer({ open, onClose, title, subtitle, children, footer }: { open: boolean; onClose: () => void; title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
+export function Drawer({ open, onClose, title, subtitle, children, footer, wide }: { open: boolean; onClose: () => void; title: string; subtitle?: string; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   useEscape(open, onClose)
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal aria-label={title}>
       <div className="absolute inset-0 bg-ink-950/30 backdrop-blur-[2px] animate-fade-up" onClick={onClose} />
-      <div className="absolute right-0 top-0 h-full w-full max-w-[480px] bg-white shadow-2xl flex flex-col animate-slide-in">
+      <div className={clsx('absolute right-0 top-0 h-full w-full bg-white shadow-2xl flex flex-col animate-slide-in', wide ? 'max-w-[980px]' : 'max-w-[480px]')}>
         <div className="flex items-start justify-between px-6 py-5 border-b border-ink-100">
           <div>
             <h2 className="text-lg font-bold">{title}</h2>

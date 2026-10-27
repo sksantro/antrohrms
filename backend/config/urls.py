@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 
 from accounts import views as auth
 from common import views as common
-from employees.views import DepartmentViewSet, EmployeeRolesView, EmployeeViewSet
+from employees.views import DepartmentViewSet, EmployeeImportView, EmployeeRolesView, EmployeeViewSet
 from payroll.views import CompensationView
 
 router = DefaultRouter(trailing_slash=False)
@@ -18,6 +18,7 @@ api = [
     path("auth/logout", auth.LogoutView.as_view()),
     path("auth/me", auth.MeView.as_view()),
     path("auth/activate", auth.ActivateView.as_view()),
+    path("admin/employees/import", EmployeeImportView.as_view()),
     path("admin/employees/<uuid:pk>/roles", EmployeeRolesView.as_view()),
     path("admin/compensation/<uuid:employee_id>", CompensationView.as_view()),
     path("admin/audit", common.AuditListView.as_view()),

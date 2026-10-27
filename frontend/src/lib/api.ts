@@ -80,6 +80,16 @@ export interface ExceptionItem {
   correction_id?: string; proposed_at?: string; reason?: string
 }
 export interface AdminDay extends HistoryDay { employee: { display_name: string; employee_code: string | null }; proof_note: string; review_note: string }
+export interface ImportRow {
+  sheet_row: number; emp_id: string; name: string; login_email: string; email_source: 'COMPANY' | 'PERSONAL' | 'NONE' | ''
+  former: boolean; status: EmployeeDTO['status'] | ''; start_date: string | null; department: string; designation: string
+  employment_type: string; manager_text: string; manager_name: string; action: 'CREATE' | 'CREATE_FORMER' | 'SKIP'; errors: string[]; warnings: string[]
+}
+export interface ImportPreview {
+  rows: ImportRow[]; ignored_columns: string[]; unmapped_columns: string[]; new_departments: string[]
+  summary: { total: number; create_current: number; create_former: number; skipped: number; with_warnings: number }
+}
+export interface ImportResult { summary: ImportPreview['summary']; new_departments: string[]; invites: { name: string; employee_code: string; login_email: string; invite_url: string }[] }
 export interface OfficeSiteDTO { id: string; name: string; address: string; latitude: string | null; longitude: string | null; radius_m: number }
 
 export class ApiError extends Error {
@@ -120,8 +130,8 @@ async function request<T>(method: string, path: string, body?: unknown, extraHea
     res = await fetch(API_BASE + path, {
       method,
       credentials: 'include',
-      headers: { ...extraHeaders, Accept: 'application/json', ...(body !== undefined && { 'Content-Type': 'application/json' }), ...(write && { 'X-CSRFToken': csrfToken() }) },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: { ...extraHeaders, Accept: 'application/json', ...(body !== undefined && !(body instanceof FormData) && { 'Content-Type': 'application/json' }), ...(write && { 'X-CSRFToken': csrfToken() }) },
+      body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     })
   } catch {
     throw new ApiError(0, null)
@@ -151,7 +161,7 @@ export const api = {
   inviteInfo: (token: string) => request<{ email: string; display_name: string; expires_at: string }>('GET', `/auth/activate${qs({ token })}`),
   activate: (token: string, password: string, accept_policy: boolean) => request<Me>('POST', '/auth/activate', { token, password, accept_policy }),
   departments: () => request<Department[]>('GET', '/departments'),
-  employees: (p: { q?: string; department?: string; status?: string; page?: string } = {}) => request<Page<EmployeeDTO>>('GET', `/employees${qs(p)}`),
+  employees: (p: { q?: string; department?: string; status?: string; page?: string; former?: string } = {}) => request<Page<EmployeeDTO>>('GET', `/employees${qs(p)}`),
   employee: (id: string) => request<EmployeeDTO>('GET', `/employees/${id}`),
   createEmployee: (body: Record<string, unknown>) => request<EmployeeDTO & { invite_url: string }>('POST', '/employees', body),
   updateEmployee: (id: string, body: Record<string, unknown>) => request<EmployeeDTO>('PATCH', `/employees/${id}`, body),
@@ -175,4 +185,6 @@ export const api = {
   decideCorrection: (id: string, decision: 'APPROVE' | 'REJECT', note: string) => request<{ status: string }>('POST', `/admin/attendance/corrections/${id}/decision`, { decision, note }),
   officeSite: () => request<OfficeSiteDTO>('GET', '/admin/office-site'),
   updateOfficeSite: (body: Partial<OfficeSiteDTO>) => request<OfficeSiteDTO>('PATCH', '/admin/office-site', body),
+  importPreview: (file: File) => { const f = new FormData(); f.append('file', file); f.append('commit', 'false'); return request<ImportPreview>('POST', '/admin/employees/import', f) },
+  importCommit: (file: File) => { const f = new FormData(); f.append('file', file); f.append('commit', 'true'); return request<ImportResult>('POST', '/admin/employees/import', f) },
 }

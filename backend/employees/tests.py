@@ -60,7 +60,7 @@ class InviteEmployeeTests(Fixture):
         self.assertEqual(r.status_code, 201, r.data)
         self.assertRegex(r.data["invite_url"], r"/activate\?token=[\w-]{30,}$")
         emp = Employee.objects.get(official_email="new@test.example")
-        self.assertTrue(emp.employee_code.startswith("APT-"))
+        self.assertRegex(emp.employee_code, r"^APT\d{4}$")
         self.assertEqual(emp.probation_end, date(2027, 2, 2))
         self.assertEqual(sorted(emp.user.role_set), ["EMPLOYEE", "INTERVIEWER"])
         self.assertFalse(emp.user.has_usable_password())  # no plaintext temp password
@@ -138,3 +138,12 @@ class InviteLinkTests(Fixture):
 
     def test_employee_cannot_get_invite_link(self):
         self.assertEqual(self.as_user(self.emp).post(f"/api/v1/employees/{self.other.employee.pk}/resend-invite").status_code, 403)
+
+
+class FormerFilterTests(Fixture):
+    def test_former_employees_hidden_by_default(self):
+        Employee.objects.filter(pk=self.other.employee.pk).update(status=Employee.Status.EXITED)
+        c = self.as_user(self.admin)
+        self.assertEqual(c.get("/api/v1/employees").data["count"], 4)
+        former = c.get("/api/v1/employees?former=1").data
+        self.assertEqual([e["employee_code"] for e in former["results"]], ["T-other"])
