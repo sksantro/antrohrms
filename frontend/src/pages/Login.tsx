@@ -37,8 +37,8 @@ function Sculpture() {
         <li className="pt-1">—</li>
       </ul>
       <div className="relative">
-        <img src="/brand/antro-mark.png" alt="" className="sculpture relative z-10 w-[min(320px,22vw)] animate-float" />
-        <img src="/brand/antro-mark.png" alt="" className="absolute left-0 top-full w-full -scale-y-100 opacity-[.14] dark:opacity-25 [mask-image:linear-gradient(to_top,black,transparent_45%)]" />
+        <img src="/brand/antro-mark.webp" alt="" className="sculpture relative z-10 w-[min(320px,22vw)] animate-float" />
+        <img src="/brand/antro-mark.webp" alt="" className="absolute left-0 top-full w-full -scale-y-100 opacity-[.14] dark:opacity-25 [mask-image:linear-gradient(to_top,black,transparent_45%)]" />
       </div>
       <div className="relative -mt-3 h-6 w-[min(360px,25vw)] rounded-[50%] bg-gradient-to-r from-[#12b6ff]/40 via-brand-500/50 to-fuchsia-500/40 blur-xl dark:from-[#12b6ff]/60 dark:via-brand-500/70 dark:to-fuchsia-500/60" />
     </div>
