@@ -1,6 +1,6 @@
 import clsx from 'clsx'
 import { AlertTriangle, Coffee, LogIn, LogOut, MapPin, MapPinOff, Play, RefreshCw, ShieldCheck, Sun, UtensilsCrossed } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ApiError, type ProofStatus } from '../lib/api'
 import { giveGeoConsent, hasGeoConsent, readLocation, type TodayHook } from '../lib/attendance'
 import { fmtDate, fmtTime, hm, mmss } from '../lib/format'
@@ -22,6 +22,24 @@ const PROOF: Record<ProofStatus, { label: string; icon: typeof MapPin }> = {
   ADMIN_OVERRIDE: { label: 'Verified by Super Admin', icon: ShieldCheck },
 }
 
+const PUNCH: Record<string, string> = {
+  CHECK_IN: 'Checked in', START_TEA: 'Tea started', END_TEA: 'Back from tea', START_LUNCH: 'Lunch started', END_LUNCH: 'Back from lunch', CHECK_OUT: 'Checked out',
+}
+
+function Meter({ label, value, pct, live }: { label: string; value: string; pct: number; live?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-white/65 truncate">{label}</span>
+        <span className={clsx('font-semibold tabular-nums', live && 'text-amber-100')}>{value}</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/15 mt-1.5 overflow-hidden">
+        <div className={clsx('h-full rounded-full transition-all duration-700', pct >= 1 && live ? 'bg-rose-300' : 'bg-white/80')} style={{ width: `${Math.min(100, pct * 100)}%` }} />
+      </div>
+    </div>
+  )
+}
+
 /** "6h 20m" with the units set smaller than the numbers. */
 function BigDuration({ sec }: { sec: number }) {
   const h = Math.floor(sec / 3600)
@@ -36,7 +54,32 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const [reasonOpen, setReasonOpen] = useState(false)
   const [reason, setReason] = useState('')
 
-  const fail = (e: unknown) => toast({ tone: 'error', title: 'That didn’t go through', body: e instanceof ApiError ? e.message : 'Please try again.' })
+  // In-app break reminders (BRD §4.4: tea 10/15 min, lunch 40/45 min). Fired once per break per level while the page is open;
+  // email alerts need the background scheduler, which isn't deployed yet.
+  const brk = data?.state === 'ON_TEA' ? 'tea' : data?.state === 'ON_LUNCH' ? 'lunch' : null
+  const th = data?.thresholds
+  const level = !brk || !live || !th ? null
+    : live.breakElapsed >= (brk === 'tea' ? th.tea_exceed_seconds : th.lunch_exceed_seconds) ? 'over'
+      : live.breakElapsed >= (brk === 'tea' ? th.tea_remind_seconds : th.lunch_remind_seconds) ? 'remind' : null
+  const notified = useRef('')
+  useEffect(() => {
+    if (!level || !brk || !th || !data?.break_started_at) return
+    const key = `${data.break_started_at}:${level}`
+    if (notified.current === key) return
+    notified.current = key
+    const mins = (s: number) => s / 60
+    if (brk === 'tea') {
+      toast(level === 'over'
+        ? { tone: 'error', title: `Tea break over ${mins(th.tea_exceed_seconds)} minutes`, body: 'Tap Resume work when you’re back at your desk.' }
+        : { tone: 'info', title: `${mins(th.tea_remind_seconds)} minutes on tea`, body: `Target is 10–${mins(th.tea_exceed_seconds)} minutes.` })
+    } else {
+      toast(level === 'over'
+        ? { tone: 'error', title: `Lunch over ${mins(th.lunch_exceed_seconds)} minutes`, body: 'Tap Resume work when you’re back at your desk.' }
+        : { tone: 'info', title: `${mins(th.lunch_remind_seconds)} minutes on lunch`, body: `Target is 30–${mins(th.lunch_exceed_seconds)} minutes.` })
+    }
+  }, [level, brk, th, data?.break_started_at, toast])
+
+  const fail =(e: unknown) => toast({ tone: 'error', title: 'That didn’t go through', body: e instanceof ApiError ? e.message : 'Please try again.' })
   const act = async (fn: () => Promise<unknown>, title: string, body?: string) => {
     try { await fn(); toast({ tone: 'success', title, body }) } catch (e) { fail(e) }
   }
@@ -66,6 +109,7 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const proof = data.day ? PROOF[data.day.proof] : null
   const pct = Math.min(1, live.work / t.work_seconds)
   const ringValue = onBreak ? live.breakElapsed / limit.max : pct
+  const lastPunch = [...data.events].reverse().find((e) => e.type in PUNCH)
 
   const doCheckIn = async (withLocation: boolean) => {
     setConsentOpen(false)
@@ -172,6 +216,17 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
               </div>
             </ProgressRing>
             <svg width="0" height="0" aria-hidden className="absolute"><defs><linearGradient id="hero-ring" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#3ee0ff" /><stop offset=".6" stopColor="#41a4ff" /><stop offset="1" stopColor="#5b8cff" /></linearGradient></defs></svg>
+          </div>
+        </div>
+
+        {/* Presence to 9h, live tea and lunch timers, and the last punch (BRD §14.3). */}
+        <div className="mt-5 pt-4 border-t border-white/15 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-[12.5px]">
+          <Meter label="In office" value={`${hm(live.presence)} / ${t.presence_seconds / 3600}h`} pct={live.presence / t.presence_seconds} />
+          <Meter label={`Tea · ${data.tea_count}×`} value={state === 'ON_TEA' ? mmss(live.breakElapsed) : hm(live.tea)} pct={state === 'ON_TEA' ? live.breakElapsed / t.tea_exceed_seconds : 0} live={state === 'ON_TEA'} />
+          <Meter label="Lunch" value={state === 'ON_LUNCH' ? mmss(live.breakElapsed) : hm(live.lunch)} pct={state === 'ON_LUNCH' ? live.breakElapsed / t.lunch_exceed_seconds : live.lunch / t.lunch_exceed_seconds} live={state === 'ON_LUNCH'} />
+          <div className="min-w-0">
+            <div className="text-white/65">Last punch</div>
+            <div className="font-semibold mt-1 truncate">{lastPunch ? `${PUNCH[lastPunch.type] ?? 'Updated'} · ${fmtTime(new Date(lastPunch.at))}` : 'None yet today'}</div>
           </div>
         </div>
       </div>
