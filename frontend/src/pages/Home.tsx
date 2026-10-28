@@ -54,7 +54,7 @@ export default function Home() {
   const early = closed.filter((d) => d.shortfall_reason).length
   // Count working days from the later of: month start, joining date, first day this person used the system (so go-live week doesn't look like absences).
   const firstUse = present.reduce((m, d) => (d.work_date < m ? d.work_date : m), today)
-  const from = [`${month}-01`, emp?.start_date ?? '', firstUse].sort().at(-1)!
+  const from = [`${month}-01`, emp?.start_date ?? '', firstUse].sort().pop()!
   const workdays = Math.max(present.length, weekdaysBetween(from, today))
   const workTarget = (att.data?.thresholds.work_seconds ?? 28800) * Math.max(1, closed.length)
 
