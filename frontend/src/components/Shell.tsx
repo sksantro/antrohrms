@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Bell, CheckCircle2, ChevronDown, CornerDownLeft, Info, LogOut, Menu, Search, ShieldCheck, X, XCircle } from 'lucide-react'
+import { Bell, CheckCircle2, ChevronDown, CornerDownLeft, Info, LogOut, Menu, Search, X, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { NOTIFICATIONS, ROLE_LABEL, type Role } from '../lib/data'
@@ -23,7 +23,7 @@ export function Logo({ light, size = 'md' }: { light?: boolean; size?: 'md' | 'l
 }
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
-  const { role, approvals } = useStore()
+  const { role, approvals, now } = useStore()
   const previews = useAuth().hasRole('SUPER_ADMIN')
   const sections = navFor(role, previews)
   return (
@@ -58,19 +58,25 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         ))}
       </div>
-      <div className="relative mt-2 h-[250px] shrink-0 overflow-hidden">
-        {/* The logo's fluid hand as a big 3D sculpture rising behind the security note. */}
-        <div className="absolute -left-10 bottom-10 size-56 rounded-full bg-gradient-to-tr from-[#12b6ff]/30 via-brand-500/25 to-fuchsia-500/25 blur-2xl" />
-        <img src="/brand/antro-mark.webp" alt="" className="absolute -left-16 -bottom-4 w-[270px] max-w-none -rotate-[18deg] drop-shadow-[0_20px_30px_rgba(61,90,254,.35)]" />
-        <div className="absolute left-3 right-3 bottom-3 rounded-2xl bg-white/80 backdrop-blur-xl ring-1 ring-white shadow-lift p-3.5 flex gap-3">
-          <ShieldCheck size={26} className="text-brand-600 shrink-0" strokeWidth={1.7} />
-          <div className="leading-tight">
-            <div className="text-[13px] font-semibold text-ink-900">Your data is secure</div>
-            <div className="text-[11.5px] text-ink-500 mt-1">Your salary and attendance are visible only to you and authorised admins.</div>
-          </div>
-        </div>
-      </div>
+      <SidebarClock now={now} />
     </nav>
+  )
+}
+
+/** Live India time and today's date: the one thing people glance at all day, on every page. */
+function SidebarClock({ now }: { now: number }) {
+  const part = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', ...o }).format(now)
+  const [hhmm, ampm] = part({ hour: 'numeric', minute: '2-digit', hour12: true }).split(' ')
+  return (
+    <div className="m-3 relative overflow-hidden rounded-2xl hero-blue text-white px-4 py-4 shadow-[0_16px_32px_-16px_rgba(37,52,200,.7)]">
+      <img src="/brand/antro-mark-192.png" alt="" className="absolute -right-4 -bottom-5 size-24 opacity-25 rotate-12" />
+      <div className="relative text-[11px] font-semibold uppercase tracking-[.14em] text-white/70">{part({ weekday: 'long' })}</div>
+      <div className="relative flex items-baseline gap-1.5 mt-1">
+        <span className="font-display font-extrabold text-[30px] leading-none tabular-nums">{hhmm}</span>
+        <span className="text-[13px] font-semibold uppercase text-white/80">{ampm}</span>
+      </div>
+      <div className="relative text-[12.5px] text-white/80 mt-1.5">{part({ day: 'numeric', month: 'long', year: 'numeric' })} · IST</div>
+    </div>
   )
 }
 
