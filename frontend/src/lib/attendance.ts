@@ -12,14 +12,29 @@ export function giveGeoConsent() {
 }
 
 /** One browser location reading. Never throws: failures become a reason the server records for review. */
-export function readLocation(): Promise<LocationPayload> {
+/**
+ * Laptops often give a rough first fix (±50–150 m) that sharpens over a few seconds. Watch the position for up to
+ * 8 s, keep the most accurate reading, and stop early once one is good enough (±30 m) — so genuine office check-ins
+ * aren't marked "not confirmed" just because the first reading was coarse.
+ */
+export function readLocation({ goodEnoughM = 30, maxWaitMs = 8000 } = {}): Promise<LocationPayload> {
   if (!('geolocation' in navigator)) return Promise.resolve({ location_error: 'not supported by this browser' })
   return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ location: { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy_m: Math.round(p.coords.accuracy) } }),
-      (e) => resolve({ location_error: e.code === e.PERMISSION_DENIED ? 'permission denied' : e.code === e.TIMEOUT ? 'timed out' : 'position unavailable' }),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
+    let best: GeolocationPosition | null = null
+    let done = false
+    const finish = (r: LocationPayload) => { if (done) return; done = true; navigator.geolocation.clearWatch(id); clearTimeout(timer); resolve(r) }
+    const fromBest = () => (best
+      ? { location: { latitude: best.coords.latitude, longitude: best.coords.longitude, accuracy_m: Math.round(best.coords.accuracy) } }
+      : { location_error: 'timed out' })
+    const id = navigator.geolocation.watchPosition(
+      (p) => {
+        if (!best || p.coords.accuracy < best.coords.accuracy) best = p
+        if (p.coords.accuracy <= goodEnoughM) finish(fromBest())
+      },
+      (e) => finish(best ? fromBest() : { location_error: e.code === e.PERMISSION_DENIED ? 'permission denied' : e.code === e.TIMEOUT ? 'timed out' : 'position unavailable' }),
+      { enableHighAccuracy: true, timeout: maxWaitMs + 4000, maximumAge: 0 },
     )
+    const timer = setTimeout(() => finish(fromBest()), maxWaitMs)
   })
 }
 

@@ -53,6 +53,9 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const [consentOpen, setConsentOpen] = useState(false)
   const [reasonOpen, setReasonOpen] = useState(false)
   const [reason, setReason] = useState('')
+  const [locating, setLocating] = useState(false)
+  // Reading the location can take a few seconds (see readLocation); keep the buttons locked and say so meanwhile.
+  const locate = async () => { setLocating(true); try { return await readLocation() } finally { setLocating(false) } }
 
   // In-app break reminders (BRD §4.4: tea 10/15 min, lunch 40/45 min). Fired once per break per level while the page is open;
   // email alerts need the background scheduler, which isn't deployed yet.
@@ -113,7 +116,7 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
 
   const doCheckIn = async (withLocation: boolean) => {
     setConsentOpen(false)
-    const loc = withLocation ? await readLocation() : { location_error: 'skipped by employee' }
+    const loc = withLocation ? await locate() : { location_error: 'skipped by employee' }
     try {
       const d = await att.checkIn(loc)
       const p = d.day?.proof
@@ -125,11 +128,11 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const startCheckIn = () => (hasGeoConsent() ? doCheckIn(true) : setConsentOpen(true))
   const tryCheckout = async () => {
     if (short || stale) { setReasonOpen(true); return }
-    const loc = hasGeoConsent() ? await readLocation() : {}
+    const loc = hasGeoConsent() ? await locate() : {}
     act(() => att.checkOut('', loc), 'Checked out', `Great day: ${hm(live.work)} of work logged.`)
   }
   const confirmCheckout = async () => {
-    const loc = hasGeoConsent() ? await readLocation() : {}
+    const loc = hasGeoConsent() ? await locate() : {}
     try {
       await att.checkOut(reason, loc)
       setReasonOpen(false); setReason('')
@@ -149,12 +152,12 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
 
   // One main action at the top-right (as in the reference); it changes with the state of the day.
   const primary = state === 'NOT_CHECKED_IN'
-    ? <button className={solid} disabled={busy || !data.is_workday} onClick={startCheckIn}>{data.is_workday ? <><LogIn size={17} /> Check in</> : <><Sun size={17} /> Weekly off</>}</button>
+    ? <button className={solid} disabled={busy || locating || !data.is_workday} onClick={startCheckIn}>{locating ? <><span className='size-4 rounded-full border-2 border-brand-200 border-t-brand-700 animate-spin' /> Getting your location…</> : data.is_workday ? <><LogIn size={17} /> Check in</> : <><Sun size={17} /> Weekly off</>}</button>
     : onBreak && !stale
-      ? <button className={solid} disabled={busy} onClick={() => act(att.resume, 'Back to work', `Break lasted ${mmss(live.breakElapsed)}.`)}><Play size={17} /> Resume work</button>
+      ? <button className={solid} disabled={busy || locating} onClick={() => act(att.resume, 'Back to work', `Break lasted ${mmss(live.breakElapsed)}.`)}><Play size={17} /> Resume work</button>
       : state === 'CHECKED_OUT'
         ? <span className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-white/15 text-[14px] font-semibold"><LogOut size={17} /> Checked out</span>
-        : <button className={solid} disabled={busy} onClick={tryCheckout}><LogOut size={17} /> {stale ? 'Check out previous day' : 'Check out'}</button>
+        : <button className={solid} disabled={busy || locating} onClick={tryCheckout}>{locating ? <><span className='size-4 rounded-full border-2 border-brand-200 border-t-brand-700 animate-spin' /> Getting your location…</> : <><LogOut size={17} /> {stale ? 'Check out previous day' : 'Check out'}</>}</button>
 
   return (
     <div className="relative rounded-3xl hero-blue text-white overflow-hidden shadow-[0_24px_60px_-24px_rgba(37,52,200,.6)]">
@@ -197,11 +200,11 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
               <span className="text-[13.5px] text-white/85" aria-live="polite">{caption}</span>
               {state === 'WORKING' && !stale && (
                 <span className="flex gap-2">
-                  <button className={ghost} disabled={busy} onClick={() => act(() => att.startBreak('TEA'), 'Tea break started', `Reminder at ${t.tea_remind_seconds / 60} minutes.`)}><Coffee size={15} /> Tea break</button>
-                  <button className={ghost} disabled={busy} onClick={() => act(() => att.startBreak('LUNCH'), 'Lunch started', `Target 30–${t.lunch_exceed_seconds / 60} minutes.`)}><UtensilsCrossed size={15} /> Lunch</button>
+                  <button className={ghost} disabled={busy || locating} onClick={() => act(() => att.startBreak('TEA'), 'Tea break started', `Reminder at ${t.tea_remind_seconds / 60} minutes.`)}><Coffee size={15} /> Tea break</button>
+                  <button className={ghost} disabled={busy || locating} onClick={() => act(() => att.startBreak('LUNCH'), 'Lunch started', `Target 30–${t.lunch_exceed_seconds / 60} minutes.`)}><UtensilsCrossed size={15} /> Lunch</button>
                 </span>
               )}
-              {onBreak && !stale && <button className={ghost} disabled={busy} onClick={tryCheckout}><LogOut size={15} /> Check out</button>}
+              {onBreak && !stale && <button className={ghost} disabled={busy || locating} onClick={tryCheckout}><LogOut size={15} /> Check out</button>}
             </div>
           </div>
 
