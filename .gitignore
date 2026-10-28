@@ -50,3 +50,6 @@ desktop.ini
 *.xlsx
 *.xls
 *.csv
+
+# Local throwaway dev database (synthetic demo data)
+*.sqlite3

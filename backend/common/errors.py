@@ -9,8 +9,9 @@ class BusinessRuleError(exceptions.APIException):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     default_code = "BUSINESS_RULE"
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, field_errors: dict[str, list[str]] | None = None):
         super().__init__(detail=message, code=code)
+        self.field_errors = field_errors or {}
 
 
 class ConflictError(BusinessRuleError):
@@ -34,7 +35,7 @@ def exception_handler(exc, context):
     code, message = _DEFAULT_CODES.get(response.status_code, ("ERROR", "Something went wrong."))
     field_errors = {}
     if isinstance(exc, BusinessRuleError):
-        code, message = exc.get_codes(), str(exc.detail)
+        code, message, field_errors = exc.get_codes(), str(exc.detail), exc.field_errors
     elif isinstance(exc, exceptions.ValidationError) and isinstance(response.data, dict):
         field_errors = {k: [str(m) for m in (v if isinstance(v, list) else [v])] for k, v in response.data.items() if k != "non_field_errors"}
         nfe = response.data.get("non_field_errors")

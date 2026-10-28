@@ -15,6 +15,7 @@ from common.testing import Fixture
 IST = ZoneInfo("Asia/Kolkata")
 MON = datetime(2026, 10, 26, 9, 30, tzinfo=IST)  # a Monday
 OFFICE = (17.4400, 78.3800)  # synthetic test coordinates, not a real office
+AT_DESK = {"location": {"latitude": OFFICE[0], "longitude": OFFICE[1], "accuracy_m": 10}}
 
 
 class Clock:
@@ -49,7 +50,7 @@ class AttendanceBase(Fixture):
     def tea(self, minutes):
         self.post("break/start", {"kind": "TEA"})
         self.clock.add(minutes)
-        self.post("break/resume")
+        self.post("break/resume", AT_DESK)  # office days re-check location on every resume
 
     @contextmanager
     def office(self, radius=50):
@@ -87,11 +88,11 @@ class PunchRulesTests(AttendanceBase):
         with self.office():
             self.check_in(location={"latitude": OFFICE[0], "longitude": OFFICE[1], "accuracy_m": 10})
         self.clock.to(11, 0); self.tea(15)
-        self.clock.to(13, 0); self.post("break/start", {"kind": "LUNCH"}); self.clock.add(45); self.post("break/resume")
+        self.clock.to(13, 0); self.post("break/start", {"kind": "LUNCH"}); self.clock.add(45); self.post("break/resume", AT_DESK)
         self.clock.to(15, 30); self.tea(15)
         self.clock.to(17, 0); self.tea(15)
         self.clock.to(19, 0)
-        r = self.post("check-out")
+        r = self.post("check-out", AT_DESK)
         self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual((r.data["work_seconds"], r.data["presence_seconds"]), (8 * 3600, 9 * 3600 + 1800))
         self.assertEqual(r.data["tea_seconds"] + r.data["lunch_seconds"], 90 * 60)

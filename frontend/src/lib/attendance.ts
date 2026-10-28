@@ -67,17 +67,8 @@ export function useToday() {
     return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible); clearInterval(id) }
   }, [refresh])
 
-  // Quiet re-verification while checked in and the page is open (browsers throttle background tabs; gaps are just gaps).
-  const state = data?.state
-  const interval = data?.thresholds.reverify_interval_seconds ?? 900
-  useEffect(() => {
-    if (!(state === 'WORKING' || state === 'ON_TEA' || state === 'ON_LUNCH') || !hasGeoConsent()) return
-    const id = setInterval(async () => {
-      if (document.visibilityState !== 'visible') return
-      try { accept(await api.verifyLocation(await readLocation())) } catch { /* next interval retries */ }
-    }, interval * 1000)
-    return () => clearInterval(id)
-  }, [state, interval, accept])
+  // Location is checked at check-in, on every resume after a break and at check-out (owner rule, 28 Oct 2026);
+  // the earlier 15-minute background re-check is gone.
 
   const run = useCallback(async (fn: (key: string) => Promise<TodayDTO>) => {
     setBusy(true)
@@ -101,10 +92,11 @@ export function useToday() {
 
   return {
     data, live, error, busy, refresh,
-    checkIn: (loc: LocationPayload) => run((k) => api.checkIn(loc, k)),
+    checkIn: (body: Parameters<typeof api.checkIn>[0]) => run((k) => api.checkIn(body, k)),
     startBreak: (kind: 'TEA' | 'LUNCH') => run((k) => api.startBreak(kind, k)),
-    resume: () => run((k) => api.resumeWork(k)),
-    checkOut: (reason: string, loc: LocationPayload) => run((k) => api.checkOut({ ...loc, reason }, k)),
+    resume: (loc: LocationPayload = {}) => run((k) => api.resumeWork(loc, k)),
+    checkOut: (reason: string, loc: LocationPayload, summary = '') => run((k) => api.checkOut({ ...loc, reason, summary }, k)),
+    confirmPresence: (id: string) => run(() => api.confirmPresence(id)),
   }
 }
 

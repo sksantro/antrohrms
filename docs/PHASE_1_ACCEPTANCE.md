@@ -29,3 +29,15 @@ Date: 27 Oct 2026 · Django 5.2.7 / PostgreSQL 17 · 70 backend tests passing
 - **Policy Center:** the attendance and break thresholds are read from policy but can't be edited yet (tabs labelled).
 - **Office network proof:** the ACT/Jio network fallback isn't built yet (deployment-dependent).
 - **Field testing:** location accuracy on office laptops over both ISPs must be tested on-site (BRD §22.3 UAT).
+
+## Owner-approved changes (28 Oct 2026)
+
+These change the BRD as agreed with the owner; tests in `backend/attendance/test_wfh.py`.
+
+| Area | Rule |
+|---|---|
+| Office location checks | At check-in, on **every resume after a break**, and at check-out. Any reading that isn't verified flags the day for review; time is never blocked. The 15-minute background re-check is removed. |
+| Work from office / home | Check-in asks Office or Work from home. Changes BRD §7.1, which only allowed WFH for holiday work. |
+| WFH approval | Request a date in advance; Super Admin approves or rejects. Same-day emergency WFH starts with a reason and is approved afterwards. Limit 4 WFH days a month (policy `attendance.wfh.monthly_limit`); emergencies are never blocked by the limit. |
+| WFH evidence | Morning plan (required) · 3 random "Are you there?" checks, at least an hour apart, 10 minutes to answer (missed = noted, never deducted; checks due during a break move to after it) · end-of-day summary with optional links (required) · Super Admin verifies every WFH day. No location, screenshots, keystrokes or webcam (BRD §1 exclusions still apply). |
+| Limits | Checks only reach people while the app is open (a browser notification is shown if the tab is in the background and permission was given). Email reminders need the background job server, which isn't deployed. |

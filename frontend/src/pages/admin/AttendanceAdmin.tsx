@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Coffee, FilePen, LogOut, MapPinOff, RefreshCw, Users, UserX, UtensilsCrossed } from 'lucide-react'
+import { AlertCircle, AlertTriangle, BellRing, CheckCircle2, Clock, Coffee, FilePen, House, LogOut, MapPinOff, RefreshCw, Users, UserX, UtensilsCrossed } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Avatar, Card, CardHeader, Drawer, EmptyState, PageHeader, Pill, Segmented, StatTile, type Tone } from '../../components/ui'
 import { api, ApiError, type AdminDay, type ExceptionItem, type LiveBoard, type LiveRow } from '../../lib/api'
@@ -17,6 +17,8 @@ const KIND: Record<ExceptionItem['kind'], { icon: typeof AlertTriangle; tone: st
   MISSING_CHECKOUT: { icon: LogOut, tone: 'bg-rose-50 text-rose-600' },
   SHORTFALL: { icon: Clock, tone: 'bg-amber-50 text-amber-600' },
   CORRECTION: { icon: FilePen, tone: 'bg-brand-50 text-brand-600' },
+  WFH_REQUEST: { icon: House, tone: 'bg-brand-50 text-brand-600' },
+  WFH_REVIEW: { icon: House, tone: 'bg-sky-50 text-sky-600' },
 }
 const hueOf = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 0)
 
@@ -139,6 +141,7 @@ export function ReviewDrawer({ item, dayId, onClose, onDone }: { item: Exception
     setDay(null); setErr(null); setNote('')
     if (id) api.adminDay(id).then(setDay).catch((e) => setErr(e instanceof ApiError ? e.message : 'Couldn’t load this day.'))
   }, [id])
+  if (item?.kind === 'WFH_REQUEST') return <WfhRequestDrawer item={item} onClose={onClose} onDone={onDone} />
   if (!id) return <Drawer open={false} onClose={onClose} title=""><></></Drawer>
 
   const decide = async (fn: () => Promise<unknown>, title: string) => {
@@ -148,6 +151,7 @@ export function ReviewDrawer({ item, dayId, onClose, onDone }: { item: Exception
     finally { setBusy(false) }
   }
   const needsProof = day && (day.proof === 'INCONCLUSIVE' || day.proof === 'FAILED')
+  const wfhDay = day?.mode === 'WFH'
   const pendingFix = item?.kind === 'CORRECTION' ? item : null
   const okNote = note.trim().length >= 3
 
@@ -162,7 +166,7 @@ export function ReviewDrawer({ item, dayId, onClose, onDone }: { item: Exception
               <button className="btn-primary" disabled={busy || !okNote} onClick={() => decide(() => api.decideCorrection(pendingFix.correction_id!, 'APPROVE', note), 'Correction approved')}>Approve correction</button>
             </>}
             {!pendingFix && needsProof && <button className="btn-primary" disabled={busy || !okNote} onClick={() => decide(() => api.reviewDay(id, 'ACCEPT_PROOF', note), 'Location accepted')}>Accept location (verified manually)</button>}
-            {!pendingFix && day.review_status !== 'REVIEWED' && <button className={needsProof ? 'btn-outline' : 'btn-primary'} disabled={busy || !okNote} onClick={() => decide(() => api.reviewDay(id, 'ACKNOWLEDGE', note), 'Marked as reviewed')}>Mark reviewed</button>}
+            {!pendingFix && day.review_status !== 'REVIEWED' && <button className={needsProof ? 'btn-outline' : 'btn-primary'} disabled={busy || !okNote} onClick={() => decide(() => api.reviewDay(id, 'ACKNOWLEDGE', note), wfhDay ? 'Work-from-home day verified' : 'Marked as reviewed')}>{wfhDay ? 'Verify WFH day' : 'Mark reviewed'}</button>}
           </div>
         </div>
       )}>
@@ -173,7 +177,23 @@ export function ReviewDrawer({ item, dayId, onClose, onDone }: { item: Exception
               <div key={k} className="rounded-xl bg-ink-50/70 p-3"><div className="text-ink-400 text-[12px]">{k}</div><div className="font-semibold text-ink-800 mt-0.5 first-letter:uppercase">{v}</div></div>
             ))}
           </div>
-          {day.proof_note && <div className="rounded-xl bg-amber-50 text-amber-800 p-3 text-[13px]"><b>Location:</b> {day.proof_note}</div>}
+          {day.proof_note && (wfhDay
+            ? <div className="rounded-xl bg-brand-50 text-brand-800 p-3 text-[13px] flex gap-2"><House size={16} className="shrink-0 mt-px" />{day.proof_note}</div>
+            : <div className="rounded-xl bg-amber-50 text-amber-800 p-3 text-[13px]"><b>Location:</b> {day.proof_note}</div>)}
+          {wfhDay && (
+            <div className="space-y-2 text-[13px]">
+              <div className="rounded-xl bg-ink-50 p-3 whitespace-pre-wrap"><b>Morning plan:</b> {day.plan || '—'}</div>
+              <div className="rounded-xl bg-ink-50 p-3 whitespace-pre-wrap"><b>End-of-day summary:</b> {day.summary || (day.status === 'OPEN' ? 'Still working' : '—')}</div>
+              {day.presence && (
+                <div className={clsx('rounded-xl p-3 flex gap-2', day.presence.missed ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800')}>
+                  <BellRing size={16} className="shrink-0 mt-px" />
+                  <span><b>“Are you there?” checks:</b> {day.presence.answered} answered, {day.presence.missed} missed{day.presence.total ? ` of ${day.presence.total}` : ''}
+                    {day.presence_checks?.length ? <span className="block text-[12px] opacity-80 mt-1">{day.presence_checks.map((c) => `${c.due_at ? fmtTime(new Date(c.due_at)) : ''} ${c.status.toLowerCase()}`).join(' · ')}</span> : null}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
           {day.shortfall_reason && <div className="rounded-xl bg-ink-50 p-3 text-[13px]"><b>Employee’s reason:</b> {day.shortfall_reason}</div>}
           {pendingFix && <div className="rounded-xl bg-brand-50 text-brand-900 p-3 text-[13px]"><b>Requested:</b> {pendingFix.title.replace('Correction: ', '')} at {fmtTime(new Date(pendingFix.proposed_at!))}<br /><span className="text-brand-700">“{pendingFix.reason}”</span></div>}
           <div>
@@ -192,6 +212,38 @@ export function ReviewDrawer({ item, dayId, onClose, onDone }: { item: Exception
           )}
         </div>
       )}
+    </Drawer>
+  )
+}
+
+/** Approve or reject a work-from-home request (normal or emergency). */
+function WfhRequestDrawer({ item, onClose, onDone }: { item: ExceptionItem; onClose: () => void; onDone: () => void }) {
+  const { toast } = useStore()
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const decide = async (d: 'APPROVE' | 'REJECT') => {
+    setBusy(true)
+    try { await api.decideWfh(item.wfh_request_id!, d, note); toast({ tone: 'success', title: d === 'APPROVE' ? 'Work from home approved' : 'Work from home rejected', body: 'Recorded in the audit trail.' }); onDone() }
+    catch (e) { toast({ tone: 'error', title: 'Couldn’t save', body: e instanceof ApiError ? e.message : undefined }) }
+    finally { setBusy(false) }
+  }
+  const ok = note.trim().length >= 3
+  return (
+    <Drawer open onClose={onClose} title={item.employee} subtitle={`${item.emergency ? 'Emergency work from home' : 'Work-from-home request'} · ${fmtDate(item.work_date, { weekday: 'long', day: 'numeric', month: 'short' })}`}
+      footer={
+        <div className="w-full space-y-3">
+          <textarea className="input h-16 py-2 resize-none" placeholder="Note for the employee and audit trail (required)" value={note} onChange={(e) => setNote(e.target.value)} aria-label="Decision note" />
+          <div className="flex justify-end gap-2">
+            <button className="btn-outline" disabled={busy || !ok} onClick={() => decide('REJECT')}>Reject</button>
+            <button className="btn-primary" disabled={busy || !ok} onClick={() => decide('APPROVE')}>Approve</button>
+          </div>
+        </div>
+      }>
+      <div className="space-y-3 text-[13px]">
+        {item.emergency && <div className="rounded-xl bg-rose-50 text-rose-800 p-3">Already started today as an emergency. Rejecting keeps the hours recorded but marks the day as rejected WFH.</div>}
+        <div className="rounded-xl bg-ink-50 p-3 whitespace-pre-wrap"><b>Reason:</b> {item.reason}</div>
+        <div className="rounded-xl bg-ink-50 p-3"><b>This month:</b> {item.used_this_month} work-from-home day{item.used_this_month === 1 ? '' : 's'} requested or approved (including this one)</div>
+      </div>
     </Drawer>
   )
 }

@@ -1,9 +1,9 @@
 import clsx from 'clsx'
-import { AlertCircle, AlertTriangle, CalendarCheck, ChevronDown, ChevronLeft, ChevronRight, Clock, Coffee, FilePen, Info, LogIn, LogOut, MapPin, MapPinOff, Play, ShieldCheck, Timer, UtensilsCrossed } from 'lucide-react'
+import { AlertCircle, AlertTriangle, BellRing, CalendarCheck, CalendarPlus, House, X, ChevronDown, ChevronLeft, ChevronRight, Clock, Coffee, FilePen, Info, LogIn, LogOut, MapPin, MapPinOff, Play, ShieldCheck, Timer, UtensilsCrossed } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import TimeTracker from '../components/TimeTracker'
 import { Card, EmptyState, Modal } from '../components/ui'
-import { api, ApiError, type AttEventDTO, type HistoryDay, type ProofStatus } from '../lib/api'
+import { api, ApiError, type AttEventDTO, type HistoryDay, type ProofStatus, type WfhRequestDTO } from '../lib/api'
 import { useToday } from '../lib/attendance'
 import { fmtDate, fmtTime, hm } from '../lib/format'
 import { useStore } from '../lib/store'
@@ -19,12 +19,14 @@ const EV: Record<string, { label: string; icon: typeof LogIn; dot: string }> = {
   VERIFICATION_FAILED: { label: 'Location re-check not confirmed', icon: MapPinOff, dot: 'bg-amber-400' },
   CORRECTION_REQUESTED: { label: 'Correction requested', icon: FilePen, dot: 'bg-ink-300' },
   CORRECTION_APPROVED: { label: 'Correction approved by Super Admin', icon: ShieldCheck, dot: 'bg-brand-600' },
+  PRESENCE_CONFIRMED: { label: 'Answered “Are you there?”', icon: BellRing, dot: 'bg-brand-400' },
 }
 const PROOF: Record<ProofStatus, { label: string; cls: string }> = {
   VERIFIED: { label: 'Verified', cls: 'bg-emerald-50 text-emerald-700' },
   INCONCLUSIVE: { label: 'Not confirmed', cls: 'bg-amber-50 text-amber-700' },
   FAILED: { label: 'Outside radius', cls: 'bg-rose-50 text-rose-700' },
   ADMIN_OVERRIDE: { label: 'Admin verified', cls: 'bg-emerald-50 text-emerald-700' },
+  REMOTE: { label: 'Work from home', cls: 'bg-brand-50 text-brand-700' },
 }
 const WEEK = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const istToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
@@ -141,10 +143,13 @@ export default function Attendance() {
       </div>
 
       <div className="grid xl:grid-cols-[360px_minmax(0,1fr)] gap-6 items-start">
+        <div className="space-y-6 min-w-0">
         <Card className="p-5 animate-fade-up" style={{ animationDelay: '140ms' }}>
           <CardTitle icon={Clock} title="Today’s timeline" sub="Recorded by the server · can’t be edited" />
           {att.data ? <Timeline events={att.data.events} /> : <div className="h-28 rounded-2xl bg-ink-50 animate-pulse" />}
         </Card>
+        <WfhCard onChange={att.refresh} />
+        </div>
 
         <Card className="animate-fade-up overflow-hidden" style={{ animationDelay: '180ms' }}>
           <div className="flex flex-wrap items-center gap-3 p-5 pb-4">
@@ -220,7 +225,12 @@ function DayRow({ row, today, onFix }: { row: Row; today: string; onFix: (d: His
       </div>
       <div className="col-span-2 md:col-span-1 flex flex-wrap items-center gap-1.5">
         <span className={clsx('inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] font-semibold', st.cls)}><span className={clsx('size-1.5 rounded-full', st.dot)} />{st.label}</span>
-        <span className={clsx('inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-medium', PROOF[day.proof].cls)}><MapPin size={11} />{PROOF[day.proof].label}</span>
+        <span className={clsx('inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-medium', PROOF[day.proof].cls)}>{day.mode === 'WFH' ? <House size={11} /> : <MapPin size={11} />}{PROOF[day.proof].label}</span>
+        {day.presence && day.presence.total > 0 && (
+          <span className={clsx('inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11.5px] font-medium', day.presence.missed ? 'bg-amber-50 text-amber-700' : 'bg-ink-50 text-ink-600')}>
+            <BellRing size={11} />Check-ins {day.presence.answered}/{day.presence.total}
+          </span>
+        )}
         {day.review_status === 'PENDING_REVIEW' && <span className="inline-flex items-center rounded-lg px-2 py-1 text-[11.5px] font-medium bg-amber-50 text-amber-700">Under review</span>}
         {day.review_status === 'REVIEWED' && <span className="inline-flex items-center rounded-lg px-2 py-1 text-[11.5px] font-medium bg-emerald-50 text-emerald-700">Reviewed</span>}
         {pending && <span className="inline-flex items-center rounded-lg px-2 py-1 text-[11.5px] font-medium bg-brand-50 text-brand-700">Correction pending</span>}
@@ -252,6 +262,8 @@ function DayRow({ row, today, onFix }: { row: Row; today: string; onFix: (d: His
               <div key={k} className="rounded-xl bg-ink-50 px-3 py-2"><dt className="text-[11.5px] text-ink-500">{k}</dt><dd className="font-semibold text-ink-800 tabular-nums">{v}</dd></div>
             ))}
           </dl>
+          {day.plan && <p className="rounded-xl bg-ink-50 px-3 py-2 text-ink-700 whitespace-pre-wrap"><b>Plan:</b> {day.plan}</p>}
+          {day.summary && <p className="rounded-xl bg-brand-50 px-3 py-2 text-ink-700 whitespace-pre-wrap"><b>Summary:</b> {day.summary}</p>}
           {day.shortfall_reason && <p className="rounded-xl bg-amber-50 text-amber-800 px-3 py-2"><b>Early check-out reason:</b> {day.shortfall_reason}</p>}
           {day.corrections.map((c) => (
             <p key={c.id} className={clsx('rounded-xl px-3 py-2', c.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-800' : c.status === 'REJECTED' ? 'bg-rose-50 text-rose-800' : 'bg-brand-50 text-brand-800')}>
@@ -346,5 +358,88 @@ function CorrectionModal({ day, onClose, onDone }: { day: HistoryDay | null; onC
         <p className="flex gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-[12.5px] text-ink-600"><Info size={16} className="text-brand-600 shrink-0 mt-px" />Your original punches stay as they are. If approved, the corrected punch is added and marked as approved by the Super Admin.</p>
       </div>
     </Modal>
+  )
+}
+
+const WFH_STATUS: Record<WfhRequestDTO['status'], string> = {
+  PENDING: 'bg-amber-50 text-amber-700', APPROVED: 'bg-emerald-50 text-emerald-700', REJECTED: 'bg-rose-50 text-rose-700', CANCELLED: 'bg-ink-50 text-ink-400',
+}
+
+/** Request work from home in advance; the Super Admin approves. Shows this month's allowance and past decisions. */
+function WfhCard({ onChange }: { onChange: () => void }) {
+  const { toast } = useStore()
+  const [data, setData] = useState<{ requests: WfhRequestDTO[]; used_this_month: number; monthly_limit: number } | null>(null)
+  const [open, setOpen] = useState(false)
+  const [date, setDate] = useState('')
+  const [reason, setReason] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const load = useCallback(() => { api.wfhRequests().then(setData).catch(() => setData({ requests: [], used_this_month: 0, monthly_limit: 4 })) }, [])
+  useEffect(load, [load])
+  const today = istToday()
+  const submit = async () => {
+    setBusy(true); setErr(null)
+    try {
+      await api.requestWfh({ date, reason })
+      toast({ tone: 'success', title: 'Work-from-home request sent', body: 'The Super Admin will approve or reject it.' })
+      setOpen(false); setDate(''); setReason(''); load(); onChange()
+    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Something went wrong.') } finally { setBusy(false) }
+  }
+  const cancel = async (r: WfhRequestDTO) => {
+    try { await api.cancelWfh(r.id); toast({ tone: 'success', title: 'Request cancelled' }); load(); onChange() }
+    catch (e) { toast({ tone: 'error', title: 'Couldn’t cancel', body: e instanceof ApiError ? e.message : undefined }) }
+  }
+  const left = data ? Math.max(0, data.monthly_limit - data.used_this_month) : null
+  return (
+    <Card className="p-5 animate-fade-up" style={{ animationDelay: '160ms' }}>
+      <div className="flex items-center gap-3 mb-4">
+        <span className="size-10 rounded-xl bg-brand-50 text-brand-600 grid place-items-center shrink-0"><House size={19} /></span>
+        <div className="flex-1 leading-tight min-w-0">
+          <h3 className="font-bold text-[16px] text-ink-900">Work from home</h3>
+          <div className="text-[12.5px] text-ink-500 mt-0.5">{data ? `${left} of ${data.monthly_limit} days left this month` : '…'}</div>
+        </div>
+        {!open && <button className="btn h-9 px-3 rounded-xl text-[13px] text-brand-700 ring-1 ring-brand-200 bg-white hover:bg-brand-50" onClick={() => setOpen(true)} disabled={left === 0}><CalendarPlus size={15} /> Request</button>}
+      </div>
+      {open && (
+        <div className="rounded-2xl ring-1 ring-brand-200 bg-brand-50/40 p-4 space-y-3 mb-4">
+          {err && <div role="alert" className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-[12.5px]">{err}</div>}
+          <div>
+            <label className="label" htmlFor="wfh-date">Date</label>
+            <input id="wfh-date" type="date" min={today} className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="wfh-reason">Reason</label>
+            <input id="wfh-reason" className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Plumber visiting in the morning" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button className="btn-ghost btn-sm" onClick={() => { setOpen(false); setErr(null) }}>Cancel</button>
+            <button className="btn-brand btn-sm !rounded-xl" disabled={!date || reason.trim().length < 5 || busy} onClick={submit}>Send request</button>
+          </div>
+          <p className="text-[11.5px] text-ink-500">For a same-day emergency, choose <b>Work from home</b> when you check in and give the reason there.</p>
+        </div>
+      )}
+      {data === null ? <div className="h-16 rounded-2xl bg-ink-50 animate-pulse" />
+        : data.requests.length === 0 ? <p className="text-[13px] text-ink-400 text-center py-3">No requests yet. Office days need no request.</p>
+        : (
+          <ul className="space-y-2">
+            {data.requests.slice(0, 6).map((r) => (
+              <li key={r.id} className="flex items-start gap-3 rounded-xl bg-ink-50/70 px-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-ink-800">
+                    {fmtDate(r.date, { weekday: 'short', day: 'numeric', month: 'short' })}
+                    <span className={clsx('rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold', WFH_STATUS[r.status])}>{r.status.charAt(0) + r.status.slice(1).toLowerCase()}</span>
+                    {r.emergency && <span className="rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold bg-rose-50 text-rose-700">Emergency</span>}
+                  </div>
+                  <div className="text-[12px] text-ink-500 truncate">{r.reason}</div>
+                  {r.decision_note && <div className="text-[12px] text-ink-400 truncate">“{r.decision_note}”</div>}
+                </div>
+                {(r.status === 'PENDING' || r.status === 'APPROVED') && !r.used && r.date >= today && (
+                  <button className="size-8 rounded-lg grid place-items-center text-ink-400 hover:bg-white hover:text-rose-600 shrink-0" onClick={() => cancel(r)} aria-label="Cancel request" title="Cancel request"><X size={15} /></button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+    </Card>
   )
 }

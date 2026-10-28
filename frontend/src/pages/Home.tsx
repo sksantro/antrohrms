@@ -32,6 +32,7 @@ const EVENT: Record<string, { label: string; icon: typeof LogIn; dot: string; pi
   CHECK_OUT: { label: 'Checked out', icon: LogOut, dot: 'bg-ink-400', pill: ['Done', 'bg-ink-100 text-ink-600'] },
   LOCATION_VERIFIED: { label: 'Location re-checked', icon: MapPin, dot: 'bg-emerald-400' },
   VERIFICATION_FAILED: { label: 'Location not confirmed', icon: MapPin, dot: 'bg-amber-400', pill: ['Review', 'bg-amber-50 text-amber-700'] },
+  PRESENCE_CONFIRMED: { label: 'Answered “Are you there?”', icon: Clock, dot: 'bg-brand-400' },
 }
 
 export default function Home() {

@@ -1,7 +1,7 @@
 import clsx from 'clsx'
-import { AlertTriangle, Coffee, LogIn, LogOut, MapPin, MapPinOff, Play, RefreshCw, ShieldCheck, Sun, UtensilsCrossed } from 'lucide-react'
+import { AlertTriangle, BellRing, Building2, Coffee, House, LogIn, LogOut, MapPin, MapPinOff, Play, RefreshCw, ShieldCheck, Sun, UtensilsCrossed } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, type ProofStatus } from '../lib/api'
+import { ApiError, type ProofStatus, type TodayDTO } from '../lib/api'
 import { giveGeoConsent, hasGeoConsent, readLocation, type TodayHook } from '../lib/attendance'
 import { fmtDate, fmtTime, hm, mmss } from '../lib/format'
 import { useStore } from '../lib/store'
@@ -20,6 +20,7 @@ const PROOF: Record<ProofStatus, { label: string; icon: typeof MapPin }> = {
   INCONCLUSIVE: { label: 'Location not confirmed · admin will review', icon: MapPinOff },
   FAILED: { label: 'Outside office radius · admin will review', icon: MapPinOff },
   ADMIN_OVERRIDE: { label: 'Verified by Super Admin', icon: ShieldCheck },
+  REMOTE: { label: 'Work from home', icon: House },
 }
 
 const PUNCH: Record<string, string> = {
@@ -54,6 +55,8 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const [reasonOpen, setReasonOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [locating, setLocating] = useState(false)
+  const [checkInOpen, setCheckInOpen] = useState(false)
+  const [summary, setSummary] = useState('')
   // Reading the location can take a few seconds (see readLocation); keep the buttons locked and say so meanwhile.
   const locate = async () => { setLocating(true); try { return await readLocation() } finally { setLocating(false) } }
 
@@ -82,7 +85,20 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
     }
   }, [level, brk, th, data?.break_started_at, toast])
 
-  const fail =(e: unknown) => toast({ tone: 'error', title: 'That didn’t go through', body: e instanceof ApiError ? e.message : 'Please try again.' })
+  // WFH "Are you there?" check: the prompt is rendered below; also ping the OS if this tab isn't in front.
+  const due = data?.state === 'WORKING' ? data.presence?.due ?? null : null
+  const pinged = useRef('')
+  useEffect(() => {
+    if (!due || pinged.current === due.id) return
+    pinged.current = due.id
+    try {
+      if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+        new Notification('Antro HRMS · Are you there?', { body: 'Tap “I’m here” within 10 minutes.', tag: 'antro-presence' })
+      }
+    } catch { /* notifications are a nice-to-have */ }
+  }, [due])
+
+  const fail = (e: unknown) => toast({ tone: 'error', title: 'That didn’t go through', body: e instanceof ApiError ? e.message : 'Please try again.' })
   const act = async (fn: () => Promise<unknown>, title: string, body?: string) => {
     try { await fn(); toast({ tone: 'success', title, body }) } catch (e) { fail(e) }
   }
@@ -113,30 +129,50 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const pct = Math.min(1, live.work / t.work_seconds)
   const ringValue = onBreak ? live.breakElapsed / limit.max : pct
   const lastPunch = [...data.events].reverse().find((e) => e.type in PUNCH)
+  const wfh = data.day?.mode === 'WFH'
+  const stateLabel = state === 'WORKING' ? (wfh ? 'Working from home' : 'Working from office') : meta.label
 
   const doCheckIn = async (withLocation: boolean) => {
     setConsentOpen(false)
     const loc = withLocation ? await locate() : { location_error: 'skipped by employee' }
     try {
-      const d = await att.checkIn(loc)
+      const d = await att.checkIn({ ...loc, mode: 'WFO' })
       const p = d.day?.proof
       toast(p === 'VERIFIED'
         ? { tone: 'success', title: 'Checked in', body: 'Location verified within the office radius.' }
         : { tone: 'info', title: 'Checked in · location not confirmed', body: 'Your time counts. The Super Admin will verify your location.' })
     } catch (e) { fail(e) }
   }
-  const startCheckIn = () => (hasGeoConsent() ? doCheckIn(true) : setConsentOpen(true))
+  const startCheckIn = () => setCheckInOpen(true)
+  const chooseOffice = () => { setCheckInOpen(false); if (hasGeoConsent()) doCheckIn(true); else setConsentOpen(true) }
+  const checkInHome = async (plan: string, emergency: string) => {
+    try {
+      await att.checkIn({ mode: 'WFH', plan, emergency_reason: emergency })
+      setCheckInOpen(false)
+      toast({ tone: 'success', title: 'Working from home', body: 'Keep this page open: a few times today it will ask “Are you there?”.' })
+      try { if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission() } catch { /* optional */ }
+    } catch (e) { fail(e) }
+  }
+  // Office days check location on every resume (owner rule); home days don't use location.
+  const resumeWork = async () => {
+    const elapsed = live.breakElapsed
+    const loc = wfh ? {} : hasGeoConsent() ? await locate() : { location_error: 'location not shared' }
+    act(() => att.resume(loc), 'Back to work', `Break lasted ${mmss(elapsed)}.`)
+  }
+  const needReason = short || stale
   const tryCheckout = async () => {
-    if (short || stale) { setReasonOpen(true); return }
+    if (wfh || needReason) { setReasonOpen(true); return }
     const loc = hasGeoConsent() ? await locate() : {}
     act(() => att.checkOut('', loc), 'Checked out', `Great day: ${hm(live.work)} of work logged.`)
   }
   const confirmCheckout = async () => {
-    const loc = hasGeoConsent() ? await locate() : {}
+    const loc = wfh ? {} : hasGeoConsent() ? await locate() : {}
     try {
-      await att.checkOut(reason, loc)
-      setReasonOpen(false); setReason('')
-      toast({ tone: 'info', title: 'Checked out · sent for review', body: 'The Super Admin reviews early check-outs. No automatic salary deduction.' })
+      await att.checkOut(needReason ? reason : '', wfh ? {} : loc, wfh ? summary : '')
+      setReasonOpen(false); setReason(''); setSummary('')
+      toast(wfh
+        ? { tone: 'success', title: 'Checked out · day sent for verification', body: 'The Super Admin reviews your plan, summary and check-ins.' }
+        : { tone: 'info', title: 'Checked out · sent for review', body: 'The Super Admin reviews early check-outs. No automatic salary deduction.' })
     } catch (e) { fail(e) }
   }
 
@@ -154,7 +190,7 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const primary = state === 'NOT_CHECKED_IN'
     ? <button className={solid} disabled={busy || locating || !data.is_workday} onClick={startCheckIn}>{locating ? <><span className='size-4 rounded-full border-2 border-brand-200 border-t-brand-700 animate-spin' /> Getting your location…</> : data.is_workday ? <><LogIn size={17} /> Check in</> : <><Sun size={17} /> Weekly off</>}</button>
     : onBreak && !stale
-      ? <button className={solid} disabled={busy || locating} onClick={() => act(att.resume, 'Back to work', `Break lasted ${mmss(live.breakElapsed)}.`)}><Play size={17} /> Resume work</button>
+      ? <button className={solid} disabled={busy || locating} onClick={() => resumeWork()}><Play size={17} /> Resume work</button>
       : state === 'CHECKED_OUT'
         ? <span className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-white/15 text-[14px] font-semibold"><LogOut size={17} /> Checked out</span>
         : <button className={solid} disabled={busy || locating} onClick={tryCheckout}>{locating ? <><span className='size-4 rounded-full border-2 border-brand-200 border-t-brand-700 animate-spin' /> Getting your location…</> : <><LogOut size={17} /> {stale ? 'Check out previous day' : 'Check out'}</>}</button>
@@ -171,11 +207,16 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-xl bg-white/10 ring-1 ring-inset ring-white/25 backdrop-blur px-3.5 h-9 text-[13px] font-semibold">
-              <span className={clsx('size-2.5 rounded-full', meta.dot, state === 'WORKING' && 'animate-pulse2')} />{meta.label}
+              <span className={clsx('size-2.5 rounded-full', meta.dot, state === 'WORKING' && 'animate-pulse2')} />{stateLabel}
             </span>
             {proof && (
               <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 h-9 text-[12px] text-white/85" title={data.day?.proof_note || undefined}>
-                <proof.icon size={14} /> {proof.label}
+                <proof.icon size={14} /> {wfh ? data.day?.proof_note || proof.label : proof.label}
+              </span>
+            )}
+            {wfh && data.presence && data.presence.total > 0 && (
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 h-9 text-[12px] text-white/85" title="Random “Are you there?” checks today">
+                <BellRing size={14} /> Check-ins {data.presence.answered}/{data.presence.total}{data.presence.missed > 0 && ` · ${data.presence.missed} missed`}
               </span>
             )}
           </div>
@@ -224,7 +265,7 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
 
         {/* Presence to 9h, live tea and lunch timers, and the last punch (BRD §14.3). */}
         <div className="mt-5 pt-4 border-t border-white/15 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-[12.5px]">
-          <Meter label="In office" value={`${hm(live.presence)} / ${t.presence_seconds / 3600}h`} pct={live.presence / t.presence_seconds} />
+          <Meter label={wfh ? 'Day so far' : 'In office'} value={`${hm(live.presence)} / ${t.presence_seconds / 3600}h`} pct={live.presence / t.presence_seconds} />
           <Meter label={`Tea · ${data.tea_count}×`} value={state === 'ON_TEA' ? mmss(live.breakElapsed) : hm(live.tea)} pct={state === 'ON_TEA' ? live.breakElapsed / t.tea_exceed_seconds : 0} live={state === 'ON_TEA'} />
           <Meter label="Lunch" value={state === 'ON_LUNCH' ? mmss(live.breakElapsed) : hm(live.lunch)} pct={state === 'ON_LUNCH' ? live.breakElapsed / t.lunch_exceed_seconds : live.lunch / t.lunch_exceed_seconds} live={state === 'ON_LUNCH'} />
           <div className="min-w-0">
@@ -246,18 +287,34 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
         </div>
       </Modal>
 
-      <Modal open={reasonOpen} onClose={() => setReasonOpen(false)} title={stale ? 'Check out your previous day' : 'Checking out early?'}
+      <Modal open={reasonOpen} onClose={() => setReasonOpen(false)} title={stale ? 'Check out your previous day' : wfh ? 'Wrap up your day' : 'Checking out early?'}
         footer={<>
           <button className="btn-ghost" onClick={() => setReasonOpen(false)}>{stale ? 'Cancel' : 'Keep working'}</button>
-          <button className="btn-primary" disabled={!reason.trim() || busy} onClick={confirmCheckout}>Check out with reason</button>
+          <button className="btn-primary" disabled={(needReason && !reason.trim()) || (wfh && summary.trim().length < 10) || busy || locating} onClick={confirmCheckout}>
+            {wfh ? 'Check out' : 'Check out with reason'}
+          </button>
         </>}>
+        {wfh && (
+          <div className="mb-4">
+            {data.day?.plan && <p className="rounded-2xl bg-ink-50 px-4 py-3 text-[13px] text-ink-600 mb-3"><b className="text-ink-800">Your plan this morning:</b> {data.day.plan}</p>}
+            <label className="label" htmlFor="wsum">What did you finish today?</label>
+            <textarea id="wsum" className="input h-28 py-2 resize-none" value={summary} onChange={(e) => setSummary(e.target.value)}
+              placeholder={'e.g. Finished the payroll export (PR #41), reviewed 2 PRs, call with the client about the dashboard'} />
+            <p className="text-[12px] text-ink-400 mt-1">Required for work from home. Add links to tickets, pull requests or documents if you have them.</p>
+          </div>
+        )}
+        {needReason && <>
         <div className="rounded-2xl bg-amber-50 text-amber-800 p-4 text-[13px] mb-4">
           {stale ? 'This day was left open. Tell the Super Admin what happened; you can also request a correction for the real check-out time from My Attendance.'
             : <>You still need <b>{hm(remainingWork)}</b> of work{remainingPresence > 0 && <> and <b>{hm(remainingPresence)}</b> of presence</>} for a full day. A reason is required.</>}
         </div>
         <label className="label" htmlFor="sr">Reason</label>
         <textarea id="sr" className="input h-24 py-2 resize-none" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Doctor’s appointment at 5 PM" />
+        </>}
       </Modal>
+
+      <CheckInChoice open={checkInOpen} onClose={() => setCheckInOpen(false)} wfhInfo={data.wfh} busy={busy || locating} onOffice={chooseOffice} onHome={checkInHome} />
+      {due && <PresencePrompt due={due} busy={busy} onConfirm={() => att.confirmPresence(due.id).then(() => toast({ tone: 'success', title: 'Thanks, noted' })).catch(fail)} />}
     </div>
   )
 }
@@ -276,5 +333,81 @@ function HeroWaves() {
       <path d="M380 0 C 470 60, 560 70, 700 40 L 700 0 Z" fill="url(#hw3)" />
       <path d="M300 260 C 420 210, 470 120, 590 80" stroke="#ffffff" strokeOpacity=".35" strokeWidth="1.5" fill="none" />
     </svg>
+  )
+}
+
+/** Check-in step 1: office or home. Home needs approved WFH for today, or an emergency reason (approved afterwards). */
+function CheckInChoice({ open, onClose, wfhInfo, busy, onOffice, onHome }: {
+  open: boolean; onClose: () => void; wfhInfo: TodayDTO['wfh']; busy: boolean; onOffice: () => void; onHome: (plan: string, emergency: string) => void
+}) {
+  const [mode, setMode] = useState<'WFO' | 'WFH'>('WFO')
+  const [plan, setPlan] = useState('')
+  const [emergency, setEmergency] = useState('')
+  const req = wfhInfo?.request
+  const approved = req?.status === 'APPROVED'
+  const ready = mode === 'WFO' || (plan.trim().length >= 5 && (approved || emergency.trim().length >= 5))
+  const tile = (m: 'WFO' | 'WFH', Icon: typeof House, title: string, sub: string) => (
+    <button type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}
+      className={clsx('flex flex-col items-start gap-2 rounded-2xl p-4 text-left ring-1 transition', mode === m ? 'bg-brand-50 ring-brand-400' : 'bg-white ring-ink-200 hover:ring-ink-300')}>
+      <span className={clsx('size-10 rounded-xl grid place-items-center', mode === m ? 'bg-brand-600 text-white' : 'bg-ink-50 text-ink-500')}><Icon size={20} /></span>
+      <span className="font-semibold text-ink-900">{title}</span>
+      <span className="text-[12px] text-ink-500 leading-snug">{sub}</span>
+    </button>
+  )
+  return (
+    <Modal open={open} onClose={onClose} title="Where are you working today?"
+      footer={<>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn-brand !rounded-xl" disabled={!ready || busy} onClick={() => (mode === 'WFO' ? onOffice() : onHome(plan, approved ? '' : emergency))}>
+          <LogIn size={17} /> {mode === 'WFO' ? 'Check in from office' : approved ? 'Check in from home' : 'Start emergency WFH'}
+        </button>
+      </>}>
+      <div className="grid grid-cols-2 gap-3" role="radiogroup">
+        {tile('WFO', Building2, 'Office', 'Location checked at check-in, after breaks and at check-out')}
+        {tile('WFH', House, 'Work from home', approved ? 'Approved for today' : req ? 'Request waiting for approval' : 'Needs approval, or an emergency reason')}
+      </div>
+      {mode === 'WFH' && (
+        <div className="mt-5 space-y-4">
+          <div className="text-[12.5px] text-ink-500">{wfhInfo?.used_this_month ?? 0} of {wfhInfo?.monthly_limit ?? 4} work-from-home days used this month.</div>
+          {!approved && (
+            <div>
+              <div className="rounded-2xl bg-amber-50 text-amber-800 px-4 py-3 text-[13px] mb-3">
+                {req ? 'Your request for today hasn’t been approved yet.' : 'You don’t have approved work from home for today.'} For an emergency, give the reason; the Super Admin approves it afterwards.
+              </div>
+              <label className="label" htmlFor="wem">Emergency reason</label>
+              <input id="wem" className="input" value={emergency} onChange={(e) => setEmergency(e.target.value)} placeholder="e.g. Child unwell, can’t travel today" />
+            </div>
+          )}
+          <div>
+            <label className="label" htmlFor="wplan">What will you work on today?</label>
+            <textarea id="wplan" className="input h-24 py-2 resize-none" value={plan} onChange={(e) => setPlan(e.target.value)} placeholder="e.g. Finish the payroll export, review two pull requests, client call at 3 pm" />
+          </div>
+          <p className="flex gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-[12.5px] text-ink-600">
+            <BellRing size={16} className="text-brand-600 shrink-0 mt-px" />
+            <span>Keep this page open. About 3 times today it will ask “Are you there?”; tap <b>I’m here</b> within 10 minutes. At check-out you’ll write a short summary.</span>
+          </p>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+/** Random "Are you there?" check on a work-from-home day. */
+function PresencePrompt({ due, busy, onConfirm }: { due: { id: string; expires_at: string }; busy: boolean; onConfirm: () => void }) {
+  const { now } = useStore()
+  const left = Math.max(0, Math.floor((Date.parse(due.expires_at) - now) / 1000))
+  return (
+    <div className="fixed inset-0 z-[55] grid place-items-center p-4" role="alertdialog" aria-modal aria-labelledby="pp-title">
+      <div className="absolute inset-0 bg-night-950/40 backdrop-blur-sm" />
+      <div className="relative w-full max-w-sm card p-7 text-center text-ink-900 shadow-2xl animate-fade-up">
+        <div className="size-16 rounded-3xl hero-blue text-white grid place-items-center mx-auto shadow-glow"><BellRing size={28} /></div>
+        <h2 id="pp-title" className="text-[22px] font-extrabold mt-5">Are you there?</h2>
+        <p className="text-ink-500 mt-1.5 text-[14px]">A quick work-from-home check-in.</p>
+        <div className="font-display font-extrabold text-[34px] tabular-nums text-brand-700 mt-4">{mmss(left)}</div>
+        <div className="text-[12px] text-ink-400">left to answer</div>
+        <button className="btn-brand w-full !h-12 !rounded-2xl mt-6 text-[15px]" disabled={busy || left === 0} onClick={onConfirm}>I’m here</button>
+        <p className="text-[11.5px] text-ink-400 mt-3">A missed check is noted on your day for review. Nothing is deducted automatically.</p>
+      </div>
+    </div>
   )
 }

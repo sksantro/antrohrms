@@ -207,7 +207,7 @@ export function Modal({ open, onClose, title, children, footer }: { open: boolea
   return (
     <div ref={ref} className="fixed inset-0 z-50 grid place-items-center p-4" role="dialog" aria-modal aria-label={title}>
       <div className="absolute inset-0 bg-ink-950/35 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl animate-fade-up">
+      <div className="relative w-full max-w-md bg-white text-ink-900 text-left rounded-3xl shadow-2xl animate-fade-up">
         <div className="px-6 pt-6"><h2 className="text-lg font-bold">{title}</h2></div>
         <div className="px-6 py-4">{children}</div>
         {footer && <div className="px-6 pb-6 flex justify-end gap-2">{footer}</div>}

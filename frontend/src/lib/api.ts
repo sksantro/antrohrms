@@ -48,38 +48,48 @@ export interface PolicyDTO { id: string; key: string; value: unknown; status: st
 
 // ---------- Attendance (P1) ----------
 export type AttState = 'NOT_CHECKED_IN' | 'WORKING' | 'ON_TEA' | 'ON_LUNCH' | 'CHECKED_OUT'
-export type ProofStatus = 'VERIFIED' | 'INCONCLUSIVE' | 'FAILED' | 'ADMIN_OVERRIDE'
+export type ProofStatus = 'VERIFIED' | 'INCONCLUSIVE' | 'FAILED' | 'ADMIN_OVERRIDE' | 'REMOTE'
+export type WorkMode = 'WFO' | 'WFH'
 export interface Thresholds {
   work_seconds: number; presence_seconds: number; tea_remind_seconds: number; tea_exceed_seconds: number
   lunch_remind_seconds: number; lunch_exceed_seconds: number; escalation_after_seconds: number; reverify_interval_seconds: number
 }
 export interface AttEventDTO { type: string; at: string; proof: string; note: string; by_admin?: boolean; distance_m?: number | null; accuracy_m?: number | null; latitude?: string | null; longitude?: string | null }
 export interface TodayDTO {
-  day: null | { id: string; work_date: string; status: 'OPEN' | 'CLOSED'; check_in_at: string; check_out_at: string | null; proof: ProofStatus; proof_note: string; review_status: 'NONE' | 'PENDING_REVIEW' | 'REVIEWED'; shortfall_reason: string; stale: boolean }
+  day: null | { id: string; work_date: string; status: 'OPEN' | 'CLOSED'; check_in_at: string; check_out_at: string | null; proof: ProofStatus; proof_note: string; review_status: 'NONE' | 'PENDING_REVIEW' | 'REVIEWED'; shortfall_reason: string; stale: boolean; mode: WorkMode; plan: string; summary: string }
   state: AttState; server_now: string; thresholds: Thresholds; events: AttEventDTO[]
   work_seconds: number; presence_seconds: number; tea_seconds: number; lunch_seconds: number; tea_count: number
   break_started_at: string | null; is_workday: boolean
+  wfh: { request: { id: string; status: 'PENDING' | 'APPROVED'; emergency: boolean } | null; used_this_month: number; monthly_limit: number } | null
+  presence: null | {
+    total: number; answered: number; missed: number
+    due: { id: string; due_at: string; expires_at: string } | null
+    checks: { due_at: string | null; status: string; responded_at: string | null }[]
+  }
 }
+export interface WfhRequestDTO { id: string; date: string; reason: string; emergency: boolean; status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'; decision_note: string; decided_at: string | null; created_at: string; used: boolean }
 export interface LocationPayload { location?: { latitude: number; longitude: number; accuracy_m: number } | null; location_error?: string }
 export interface HistoryDay {
   id: string; work_date: string; status: 'OPEN' | 'CLOSED'; check_in_at: string; check_out_at: string | null
   work_seconds: number; presence_seconds: number; tea_seconds: number; lunch_seconds: number; tea_count: number
   proof: ProofStatus; review_status: string; shortfall_reason: string; events: AttEventDTO[]
+  mode: WorkMode; plan: string; summary: string; presence: { total: number; answered: number; missed: number } | null
   corrections: { id: string; event_type: string; proposed_at: string; status: 'PENDING' | 'APPROVED' | 'REJECTED'; decision_note: string }[]
 }
 export interface LiveRow {
   employee: { id: string; display_name: string; employee_code: string | null; designation: string; department: string }
   day_id: string | null; state: AttState | 'NOT_ARRIVED'; check_in_at: string | null; check_out_at: string | null
-  work_seconds: number; presence_seconds: number; break_started_at: string | null; proof: ProofStatus | null; flags: string[]
+  work_seconds: number; presence_seconds: number; break_started_at: string | null; proof: ProofStatus | null; flags: string[]; mode: WorkMode | null
 }
 export interface LiveBoard { server_now: string; work_date: string; counts: Record<'WORKING' | 'ON_TEA' | 'ON_LUNCH' | 'CHECKED_OUT' | 'NOT_ARRIVED' | 'PROOF_REVIEW', number>; rows: LiveRow[]; thresholds: Thresholds }
 export interface ExceptionItem {
-  kind: 'GEO_FAILED' | 'GEO_INCONCLUSIVE' | 'MISSING_CHECKOUT' | 'SHORTFALL' | 'CORRECTION'; priority: number; title: string
+  kind: 'GEO_FAILED' | 'GEO_INCONCLUSIVE' | 'MISSING_CHECKOUT' | 'SHORTFALL' | 'CORRECTION' | 'WFH_REQUEST' | 'WFH_REVIEW'; priority: number; title: string
   day_id: string; employee: string; employee_code: string | null; work_date: string
   check_in_at?: string; check_out_at?: string | null; proof?: ProofStatus; proof_note?: string; shortfall_reason?: string; work_seconds?: number
   correction_id?: string; proposed_at?: string; reason?: string
+  wfh_request_id?: string; emergency?: boolean; used_this_month?: number; plan?: string; summary?: string; presence?: { answered: number; missed: number; total: number }
 }
-export interface AdminDay extends HistoryDay { employee: { display_name: string; employee_code: string | null }; proof_note: string; review_note: string }
+export interface AdminDay extends HistoryDay { employee: { display_name: string; employee_code: string | null }; proof_note: string; review_note: string; presence_checks?: { due_at: string | null; status: string; responded_at: string | null }[] }
 export interface ImportRow {
   sheet_row: number; emp_id: string; name: string; login_email: string; email_source: 'COMPANY' | 'PERSONAL' | 'NONE' | ''
   former: boolean; status: EmployeeDTO['status'] | ''; start_date: string | null; department: string; designation: string
@@ -173,11 +183,15 @@ export const api = {
   policies: () => request<PolicyDTO[]>('GET', '/admin/policies'),
   // Attendance: every punch carries an Idempotency-Key so double clicks and retries never double-punch.
   today: () => request<TodayDTO>('GET', '/attendance/today'),
-  checkIn: (body: LocationPayload, key: string) => request<TodayDTO>('POST', '/attendance/check-in', body, { 'Idempotency-Key': key }),
+  checkIn: (body: LocationPayload & { mode?: WorkMode; plan?: string; emergency_reason?: string }, key: string) => request<TodayDTO>('POST', '/attendance/check-in', body, { 'Idempotency-Key': key }),
   startBreak: (kind: 'TEA' | 'LUNCH', key: string) => request<TodayDTO>('POST', '/attendance/break/start', { kind }, { 'Idempotency-Key': key }),
-  resumeWork: (key: string) => request<TodayDTO>('POST', '/attendance/break/resume', {}, { 'Idempotency-Key': key }),
-  checkOut: (body: LocationPayload & { reason?: string }, key: string) => request<TodayDTO>('POST', '/attendance/check-out', body, { 'Idempotency-Key': key }),
-  verifyLocation: (body: LocationPayload) => request<TodayDTO>('POST', '/attendance/verify-location', body),
+  resumeWork: (body: LocationPayload, key: string) => request<TodayDTO>('POST', '/attendance/break/resume', body, { 'Idempotency-Key': key }),
+  checkOut: (body: LocationPayload & { reason?: string; summary?: string }, key: string) => request<TodayDTO>('POST', '/attendance/check-out', body, { 'Idempotency-Key': key }),
+  confirmPresence: (id: string) => request<TodayDTO>('POST', `/attendance/presence-checks/${id}/confirm`),
+  wfhRequests: () => request<{ requests: WfhRequestDTO[]; used_this_month: number; monthly_limit: number }>('GET', '/attendance/wfh-requests'),
+  requestWfh: (body: { date: string; reason: string }) => request<WfhRequestDTO>('POST', '/attendance/wfh-requests', body),
+  cancelWfh: (id: string) => request<WfhRequestDTO>('POST', `/attendance/wfh-requests/${id}/cancel`),
+  decideWfh: (id: string, decision: 'APPROVE' | 'REJECT', note: string) => request<WfhRequestDTO>('POST', `/admin/wfh-requests/${id}/decision`, { decision, note }),
   history: (month: string) => request<{ month: string; workdays: string[]; days: HistoryDay[] }>('GET', `/attendance/history${qs({ month })}`),
   requestCorrection: (dayId: string, body: { event_type: string; proposed_at: string; reason: string }) => request<{ id: string; status: string }>('POST', `/attendance/days/${dayId}/corrections`, body),
   liveBoard: () => request<LiveBoard>('GET', '/admin/attendance/today'),

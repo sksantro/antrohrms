@@ -11,6 +11,12 @@ class Proof(models.TextChoices):
     INCONCLUSIVE = "INCONCLUSIVE"    # accuracy too poor, location unavailable, or office not configured
     FAILED = "FAILED"                # clearly outside the office radius
     ADMIN_OVERRIDE = "ADMIN_OVERRIDE"  # Super Admin accepted after manual verification
+    REMOTE = "REMOTE"                # work-from-home day: no office geofence; verified by plan, presence checks and summary
+
+
+class Mode(models.TextChoices):
+    WFO = "WFO", "Work from office"
+    WFH = "WFH", "Work from home"
 
 
 class AttendanceDay(models.Model):
@@ -32,6 +38,10 @@ class AttendanceDay(models.Model):
     check_out_at = models.DateTimeField(null=True, blank=True)
     proof = models.CharField(max_length=16, choices=Proof.choices)
     proof_note = models.CharField(max_length=200, blank=True)
+    mode = models.CharField(max_length=3, choices=Mode.choices, default=Mode.WFO)
+    plan = models.TextField(blank=True)      # WFH: what the person will work on (given at check-in)
+    summary = models.TextField(blank=True)   # WFH: what got done, with optional links (given at check-out)
+    wfh_request = models.ForeignKey("WfhRequest", null=True, blank=True, on_delete=models.PROTECT, related_name="days")
     shortfall_reason = models.TextField(blank=True)
     review_status = models.CharField(max_length=16, choices=Review.choices, default=Review.NONE)
     review_note = models.TextField(blank=True)
@@ -67,6 +77,7 @@ class AttendanceEvent(models.Model):
         VERIFICATION_FAILED = "VERIFICATION_FAILED"
         CORRECTION_REQUESTED = "CORRECTION_REQUESTED"
         CORRECTION_APPROVED = "CORRECTION_APPROVED"
+        PRESENCE_CONFIRMED = "PRESENCE_CONFIRMED"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     day = models.ForeignKey(AttendanceDay, on_delete=models.PROTECT, related_name="events")
@@ -123,3 +134,52 @@ class AttendanceCorrection(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class WfhRequest(models.Model):
+    """Weekday work from home. Approved in advance by the Super Admin; an emergency same-day request starts
+    work immediately and is approved afterwards. Owner-approved change to BRD §7.1 (weekday WFH), 28 Oct 2026."""
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING"
+        APPROVED = "APPROVED"
+        REJECTED = "REJECTED"
+        CANCELLED = "CANCELLED"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey("common.Organization", on_delete=models.PROTECT)
+    employee = models.ForeignKey("employees.Employee", on_delete=models.PROTECT, related_name="wfh_requests")
+    date = models.DateField()
+    reason = models.TextField()
+    emergency = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["employee", "date"], condition=Q(status__in=["PENDING", "APPROVED"]), name="one_active_wfh_request_per_day"),
+        ]
+
+
+class PresenceCheck(models.Model):
+    """A random "Are you there?" prompt on a work-from-home day. Missing one is noted for review, never deducted."""
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING"
+        ANSWERED = "ANSWERED"
+        MISSED = "MISSED"
+        CANCELLED = "CANCELLED"   # day ended before it was due, or it fell due right at check-out
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    day = models.ForeignKey(AttendanceDay, on_delete=models.PROTECT, related_name="presence_checks")
+    due_at = models.DateTimeField()
+    responded_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+
+    class Meta:
+        ordering = ["due_at"]
