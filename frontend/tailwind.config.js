@@ -17,7 +17,7 @@ export default {
           50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#7b8cff',
           500: '#4f5dff', 600: '#3a46f0', 700: '#2f37d0', 800: '#2a2fa8', 900: '#262b85',
         },
-        canvas: '#fbfaf8',
+        canvas: '#f5f7fc',
       },
       boxShadow: {
         card: '0 1px 2px rgba(16,24,48,.04), 0 1px 3px rgba(16,24,48,.06)',

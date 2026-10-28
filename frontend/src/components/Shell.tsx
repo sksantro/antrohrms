@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Bell, CheckCircle2, ChevronDown, CornerDownLeft, Info, LogOut, Menu, Search, ShieldCheck, X, XCircle } from 'lucide-react'
+import { Bell, CheckCircle2, ChevronDown, CornerDownLeft, Info, LogOut, Menu, Search, X, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { NOTIFICATIONS, ROLE_LABEL, type Role } from '../lib/data'
@@ -27,28 +27,29 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const sections = navFor(role, previews)
   return (
     <nav className="flex flex-col h-full" aria-label="Main">
-      <div className="px-5 h-16 flex items-center"><Logo /></div>
-      <div className="flex-1 overflow-y-auto scroll-thin px-3 pb-4 space-y-6 mt-2">
+      <div className="px-6 h-[76px] flex items-center"><Logo /></div>
+      <div className="flex-1 overflow-y-auto scroll-thin px-3 pb-4 space-y-6 mt-1">
         {sections.map((s) => (
           <div key={s.title}>
             <div className="eyebrow px-3 mb-2">{s.title}</div>
-            <ul className="space-y-0.5">
+            <ul className="space-y-1">
               {s.items.map((it) => (
                 <li key={it.to}>
                   <NavLink to={it.to} end onClick={onNavigate}
                     title={it.planned ? `Planned for phase ${it.planned}` : undefined}
                     className={({ isActive }) => clsx(
-                      'group flex items-center gap-3 px-3 h-9 rounded-xl text-[13.5px] font-medium transition-colors',
-                      isActive ? 'bg-ink-900 text-white shadow-lift' : it.planned ? 'text-ink-400 hover:bg-ink-50 hover:text-ink-600' : 'text-ink-600 hover:bg-ink-100/80 hover:text-ink-900',
+                      'group relative flex items-center gap-3 px-3 h-11 rounded-2xl text-[14px] font-medium transition-colors',
+                      isActive ? 'bg-brand-50 text-brand-700 font-semibold' : it.planned ? 'text-ink-400 hover:bg-ink-50 hover:text-ink-600' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900',
                     )}>
                     {({ isActive }) => (
                       <>
-                        <it.icon size={17} className={clsx(isActive ? 'text-brand-300' : it.planned ? 'text-ink-300' : 'text-ink-400 group-hover:text-ink-600')} />
+                        {isActive && <span className="absolute -left-3 top-2 bottom-2 w-1 rounded-r-full bg-gradient-to-b from-[#12b6ff] via-brand-500 to-fuchsia-500" />}
+                        <it.icon size={19} strokeWidth={isActive ? 2.2 : 1.8} className={clsx(isActive ? 'text-brand-600' : it.planned ? 'text-ink-300' : 'text-ink-400 group-hover:text-ink-700')} />
                         <span className="flex-1 truncate">{it.label}</span>
                         {it.badge === 'approvals' && approvals.length > 0 && (
-                          <span className={clsx('text-[11px] font-bold rounded-full px-1.5 min-w-5 text-center', isActive ? 'bg-brand-500 text-white' : 'bg-brand-100 text-brand-700')}>{approvals.length}</span>
+                          <span className="text-[11px] font-bold rounded-full px-1.5 min-w-5 text-center bg-brand-600 text-white">{approvals.length}</span>
                         )}
-                        {it.planned && <span className={clsx('text-[10px] font-semibold uppercase tracking-wide rounded-full px-1.5 py-px', isActive ? 'bg-white/10 text-white/60' : 'bg-ink-50 text-ink-400 ring-1 ring-inset ring-ink-100')}>Soon</span>}
+                        {it.planned && <span className="text-[9.5px] font-semibold uppercase tracking-wide rounded-full px-1.5 py-px text-ink-400 bg-ink-50">Soon</span>}
                       </>
                     )}
                   </NavLink>
@@ -58,11 +59,11 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         ))}
       </div>
-      <div className="m-3 p-4 rounded-2xl bg-gradient-to-br from-brand-600 to-brand-900 text-white relative overflow-hidden">
-        <div className="absolute -right-6 -top-6 size-24 rounded-full bg-white/10" />
-        <ShieldCheck size={18} className="text-brand-200" />
-        <div className="text-[13px] font-semibold mt-2">Privacy by design</div>
-        <p className="text-[11.5px] text-white/70 mt-0.5 leading-snug">Salary & attendance are visible only to people who are allowed to see them.</p>
+      <div className="m-3 p-5 rounded-3xl relative overflow-hidden text-white bg-[linear-gradient(135deg,#12b6ff_0%,#3d5afe_50%,#8b3dff_100%)] shadow-glow">
+        <img src="/brand/antro-mark-192.png" alt="" className="absolute -right-5 -bottom-6 size-28 opacity-30 rotate-12" />
+        <div className="relative font-display font-bold text-[17px] leading-snug">Great people build<br />extraordinary things.</div>
+        <div className="relative mt-3 h-0.5 w-8 rounded-full bg-white/70" />
+        <div className="relative mt-3 text-[11.5px] text-white/80">Antro PAI Technology</div>
       </div>
     </nav>
   )
@@ -77,11 +78,11 @@ function RoleSwitcher() {
   useEscape(open, useCallback(() => setOpen(false), []))
   return (
     <div className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-2.5 pl-1.5 pr-2.5 h-10 rounded-xl hover:bg-ink-100 transition" aria-haspopup="menu" aria-expanded={open}>
-        <Avatar name={me.name} hue={me.hue} size={30} />
+      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-3 pl-1.5 pr-2.5 h-12 rounded-2xl hover:bg-ink-50 transition" aria-haspopup="menu" aria-expanded={open}>
+        <Avatar name={me.name} hue={me.hue} size={38} />
         <div className="text-left leading-tight hidden sm:block">
-          <div className="text-[13px] font-semibold text-ink-900">{me.name}</div>
-          <div className="text-[11px] text-brand-600 font-medium">{ROLE_LABEL[role]}</div>
+          <div className="text-[14px] font-semibold text-ink-900">{me.name}</div>
+          <div className="text-[11.5px] text-ink-500">{ROLE_LABEL[role]}{me.code !== '—' && <> · {me.code}</>}</div>
         </div>
         <ChevronDown size={15} className="text-ink-400" />
       </button>
@@ -232,7 +233,7 @@ export default function Shell() {
   const { role } = useStore()
   const previews = useAuth().hasRole('SUPER_ADMIN')
   const page = navFor(role, previews).flatMap((s) => s.items).find((it) => it.to === loc.pathname)
-  useEffect(() => { document.title = page ? `${page.label} · antro.hr` : 'antro.hr' }, [page])
+  useEffect(() => { document.title = page ? `${page.label} · Antro HRMS` : 'Antro HRMS' }, [page])
   const closeNav = useCallback(() => setMobileNav(false), [])
   useEscape(mobileNav, closeNav)
   const navRef = useDialog(mobileNav)
@@ -240,7 +241,7 @@ export default function Shell() {
   return (
     <div className="min-h-screen flex">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] btn-dark">Skip to content</a>
-      <aside className="hidden lg:block w-[260px] shrink-0 border-r border-ink-100 bg-white/70 backdrop-blur sticky top-0 h-screen">
+      <aside className="hidden lg:block w-[264px] shrink-0 border-r border-ink-100 bg-white sticky top-0 h-screen">
         <Sidebar />
       </aside>
       {mobileNav && (
@@ -253,11 +254,11 @@ export default function Shell() {
         </div>
       )}
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-20 h-16 flex items-center gap-3 px-4 sm:px-8 bg-canvas/80 backdrop-blur-md border-b border-ink-100/70">
+        <header className="sticky top-0 z-20 h-[76px] flex items-center gap-3 px-4 sm:px-8 bg-white/85 backdrop-blur-md border-b border-ink-100">
           <button className="lg:hidden btn-ghost !px-2" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu size={20} /></button>
-          <button onClick={() => setCmd(true)} className="flex items-center gap-2.5 h-10 px-3.5 rounded-xl bg-white border border-ink-200 text-ink-400 text-[13px] w-full max-w-sm hover:border-ink-300 transition">
-            <Search size={16} />
-            <span className="flex-1 text-left">Search pages…</span>
+          <button onClick={() => setCmd(true)} className="flex items-center gap-3 h-11 px-4 rounded-2xl bg-ink-50 border border-transparent text-ink-400 text-[13.5px] w-full max-w-md hover:border-ink-200 hover:bg-white transition">
+            <Search size={17} />
+            <span className="flex-1 text-left truncate">Search pages, e.g. attendance, profile…</span>
             <kbd className="hidden sm:inline text-[11px] border border-ink-200 rounded px-1.5 py-0.5">Ctrl K</kbd>
           </button>
           <div className="flex-1" />
