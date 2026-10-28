@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { Bell, CheckCircle2, ChevronDown, CornerDownLeft, Info, LogOut, Menu, Search, X, XCircle } from 'lucide-react'
+import { Bell, CheckCircle2, ChevronDown, CornerDownLeft, Info, LogOut, Menu, Search, ShieldCheck, X, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { NOTIFICATIONS, ROLE_LABEL, type Role } from '../lib/data'
@@ -39,12 +39,11 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     title={it.planned ? `Planned for phase ${it.planned}` : undefined}
                     className={({ isActive }) => clsx(
                       'group relative flex items-center gap-3 px-3 h-11 rounded-2xl text-[14px] font-medium transition-colors',
-                      isActive ? 'bg-brand-50 text-brand-700 font-semibold' : it.planned ? 'text-ink-400 hover:bg-ink-50 hover:text-ink-600' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900',
+                      isActive ? 'bg-gradient-to-r from-[#2338c9] to-[#2f6bff] text-white font-semibold shadow-[0_10px_24px_-10px_rgba(47,107,255,.7)]' : it.planned ? 'text-ink-400 hover:bg-ink-50 hover:text-ink-600' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900',
                     )}>
                     {({ isActive }) => (
                       <>
-                        {isActive && <span className="absolute -left-3 top-2 bottom-2 w-1 rounded-r-full bg-gradient-to-b from-[#12b6ff] via-brand-500 to-fuchsia-500" />}
-                        <it.icon size={19} strokeWidth={isActive ? 2.2 : 1.8} className={clsx(isActive ? 'text-brand-600' : it.planned ? 'text-ink-300' : 'text-ink-400 group-hover:text-ink-700')} />
+                        <it.icon size={19} strokeWidth={isActive ? 2.2 : 1.8} className={clsx(isActive ? 'text-white' : it.planned ? 'text-ink-300' : 'text-ink-400 group-hover:text-ink-700')} />
                         <span className="flex-1 truncate">{it.label}</span>
                         {it.badge === 'approvals' && approvals.length > 0 && (
                           <span className="text-[11px] font-bold rounded-full px-1.5 min-w-5 text-center bg-brand-600 text-white">{approvals.length}</span>
@@ -59,11 +58,24 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         ))}
       </div>
-      <div className="m-3 p-5 rounded-3xl relative overflow-hidden text-white bg-[linear-gradient(135deg,#12b6ff_0%,#3d5afe_50%,#8b3dff_100%)] shadow-glow">
-        <img src="/brand/antro-mark-192.png" alt="" className="absolute -right-5 -bottom-6 size-28 opacity-30 rotate-12" />
-        <div className="relative font-display font-bold text-[17px] leading-snug">Great people build<br />extraordinary things.</div>
-        <div className="relative mt-3 h-0.5 w-8 rounded-full bg-white/70" />
-        <div className="relative mt-3 text-[11.5px] text-white/80">Antro PAI Technology</div>
+      <div className="relative mt-2 h-[230px] shrink-0 overflow-hidden">
+        {/* Flowing brand shapes behind the security note. */}
+        <svg className="absolute inset-0 size-full" viewBox="0 0 264 230" preserveAspectRatio="xMinYMax slice" aria-hidden>
+          <defs>
+            <linearGradient id="sb1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3ee0ff" /><stop offset=".55" stopColor="#3d5afe" /><stop offset="1" stopColor="#b14dff" /></linearGradient>
+            <linearGradient id="sb2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#8b3dff" /><stop offset="1" stopColor="#12b6ff" /></linearGradient>
+          </defs>
+          <path d="M-20 230 C 10 150, 0 80, 40 40 C 70 10, 110 30, 100 80 C 92 120, 60 140, 70 190 C 75 215, 90 230, 90 230 Z" fill="url(#sb1)" opacity=".85" />
+          <path d="M60 230 C 70 170, 120 150, 150 110 C 170 85, 200 95, 190 130 C 180 170, 130 190, 140 230 Z" fill="url(#sb2)" opacity=".55" />
+          <path d="M-10 120 C 20 100, 30 60, 70 70 C 50 90, 40 120, -10 150 Z" fill="#a5f3fc" opacity=".5" />
+        </svg>
+        <div className="absolute left-3 right-3 bottom-3 rounded-2xl bg-white/85 backdrop-blur-md ring-1 ring-white shadow-lift p-3.5 flex gap-3">
+          <ShieldCheck size={26} className="text-brand-600 shrink-0" strokeWidth={1.7} />
+          <div className="leading-tight">
+            <div className="text-[13px] font-semibold text-ink-900">Your data is secure</div>
+            <div className="text-[11.5px] text-ink-500 mt-1">Your salary and attendance are visible only to you and authorised admins.</div>
+          </div>
+        </div>
       </div>
     </nav>
   )

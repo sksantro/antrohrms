@@ -1,9 +1,9 @@
 import clsx from 'clsx'
-import { ArrowUpRight, Briefcase, CalendarDays, Check, Clock, Coffee, FileText, IdCard, ListChecks, LogIn, LogOut, MapPin, Minus, Play, Receipt, Rocket, Sun, UserCircle, UtensilsCrossed, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { ArrowRight, CalendarDays, CalendarPlus, Clock, Coffee, FilePen, History, KeyRound, LogIn, LogOut, MapPin, Play, Quote, Receipt, UserCircle, UserPen, UtensilsCrossed, Zap } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import TimeTracker from '../components/TimeTracker'
-import { Avatar, Card, CardHeader } from '../components/ui'
+import { Card, ProgressRing } from '../components/ui'
 import { api, type AttEventDTO, type EmployeeDTO, type HistoryDay } from '../lib/api'
 import { useToday } from '../lib/attendance'
 import { useAuth } from '../lib/auth'
@@ -12,26 +12,26 @@ import { useStore } from '../lib/store'
 
 const TZ = 'Asia/Kolkata'
 const istDate = (d: Date | number = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(d)
-const addDays = (iso: string, n: number) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
-const hueOf = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 0)
+const TYPE: Record<string, string> = { FULL_TIME: 'Full time', INTERN: 'Intern', CONTRACT: 'Contract' }
 
-const STATUS_CHIP = {
-  NOT_CHECKED_IN: { label: 'Not checked in', cls: 'bg-white text-ink-600 ring-ink-200', dot: 'bg-ink-300' },
-  WORKING: { label: 'Checked in', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200', dot: 'bg-emerald-500' },
-  ON_TEA: { label: 'On tea break', cls: 'bg-amber-50 text-amber-800 ring-amber-200', dot: 'bg-amber-500' },
-  ON_LUNCH: { label: 'On lunch', cls: 'bg-sky-50 text-sky-800 ring-sky-200', dot: 'bg-[#12b6ff]' },
-  CHECKED_OUT: { label: 'Checked out', cls: 'bg-white text-ink-600 ring-ink-200', dot: 'bg-ink-400' },
-} as const
+/** Monday–Friday dates from `from` up to and including `to` (ISO strings). */
+function weekdaysBetween(from: string, to: string) {
+  let n = 0
+  for (let d = new Date(from + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+    if (d.getUTCDay() % 6 !== 0) n++
+  }
+  return n
+}
 
-const EVENT: Record<string, { label: string; icon: typeof LogIn; cls: string }> = {
-  CHECK_IN: { label: 'Checked in', icon: LogIn, cls: 'bg-emerald-50 text-emerald-600' },
-  START_TEA: { label: 'Started tea break', icon: Coffee, cls: 'bg-amber-50 text-amber-600' },
-  END_TEA: { label: 'Back from tea', icon: Play, cls: 'bg-brand-50 text-brand-600' },
-  START_LUNCH: { label: 'Went for lunch', icon: UtensilsCrossed, cls: 'bg-sky-50 text-sky-600' },
-  END_LUNCH: { label: 'Back from lunch', icon: Play, cls: 'bg-brand-50 text-brand-600' },
-  CHECK_OUT: { label: 'Checked out', icon: LogOut, cls: 'bg-ink-100 text-ink-600' },
-  LOCATION_VERIFIED: { label: 'Location re-checked', icon: MapPin, cls: 'bg-emerald-50 text-emerald-600' },
-  VERIFICATION_FAILED: { label: 'Location not confirmed', icon: MapPin, cls: 'bg-amber-50 text-amber-600' },
+const EVENT: Record<string, { label: string; icon: typeof LogIn; dot: string; pill?: [string, string] }> = {
+  CHECK_IN: { label: 'Checked in', icon: LogIn, dot: 'bg-emerald-500', pill: ['Started', 'bg-emerald-50 text-emerald-700'] },
+  START_TEA: { label: 'Tea break', icon: Coffee, dot: 'bg-amber-500' },
+  END_TEA: { label: 'Back from tea', icon: Play, dot: 'bg-brand-500' },
+  START_LUNCH: { label: 'Lunch break', icon: UtensilsCrossed, dot: 'bg-sky-500' },
+  END_LUNCH: { label: 'Back from lunch', icon: Play, dot: 'bg-brand-500' },
+  CHECK_OUT: { label: 'Checked out', icon: LogOut, dot: 'bg-ink-400', pill: ['Done', 'bg-ink-100 text-ink-600'] },
+  LOCATION_VERIFIED: { label: 'Location re-checked', icon: MapPin, dot: 'bg-emerald-400' },
+  VERIFICATION_FAILED: { label: 'Location not confirmed', icon: MapPin, dot: 'bg-amber-400', pill: ['Review', 'bg-amber-50 text-amber-700'] },
 }
 
 export default function Home() {
@@ -42,225 +42,220 @@ export default function Home() {
   const [days, setDays] = useState<HistoryDay[] | null>(null)
   const emp = me?.employee
   const today = istDate(now)
-  const monday = addDays(today, -((new Date(today + 'T00:00:00Z').getUTCDay() + 6) % 7))
-  const months = useMemo(() => [...new Set([monday.slice(0, 7), today.slice(0, 7)])], [monday, today])
+  const month = today.slice(0, 7)
 
   useEffect(() => { api.myProfile().then(setProfile).catch(() => setProfile(null)) }, [])
   const state = att.data?.state
-  useEffect(() => {
-    Promise.all(months.map((m) => api.history(m).then((h) => h.days)))
-      .then((all) => setDays(all.flat()))
-      .catch(() => setDays([]))
-  }, [state, months])
+  useEffect(() => { api.history(month).then((h) => setDays(h.days)).catch(() => setDays([])) }, [state, month])
 
-  const month = (days ?? []).filter((d) => d.work_date.startsWith(today.slice(0, 7)))
-  const worked = month.filter((d) => d.status === 'CLOSED')
-  const totalWork = worked.reduce((s, d) => s + d.work_seconds, 0)
-  const early = worked.filter((d) => d.shortfall_reason).length
-  const missing = month.filter((d) => d.status === 'OPEN' && d.work_date < today).length
-  const firstName = me?.display_name.split(' ')[0] ?? ''
-  const chip = STATUS_CHIP[state ?? 'NOT_CHECKED_IN']
+  const present = (days ?? []).filter((d) => d.work_date <= today)
+  const closed = present.filter((d) => d.status === 'CLOSED')
+  const totalWork = closed.reduce((s, d) => s + d.work_seconds, 0)
+  const early = closed.filter((d) => d.shortfall_reason).length
+  // Count working days from the later of: month start, joining date, first day this person used the system (so go-live week doesn't look like absences).
+  const firstUse = present.reduce((m, d) => (d.work_date < m ? d.work_date : m), today)
+  const from = [`${month}-01`, emp?.start_date ?? '', firstUse].sort().at(-1)!
+  const workdays = Math.max(present.length, weekdaysBetween(from, today))
+  const workTarget = (att.data?.thresholds.work_seconds ?? 28800) * Math.max(1, closed.length)
+
+  const live = att.live
+  const t = att.data?.thresholds
+  const earliestOut = live && t && att.data?.day && !att.data.day.stale && state !== 'CHECKED_OUT'
+    ? fmtTime(live.serverNow + Math.max(t.work_seconds - live.work, t.presence_seconds - live.presence, 0) * 1000) : null
 
   return (
     <div className="space-y-6">
-      {/* Welcome banner */}
-      <section className="relative overflow-hidden rounded-3xl border border-ink-100 bg-gradient-to-r from-white via-white to-brand-50 shadow-card animate-fade-up">
-        <Hills />
-        <div className="relative flex flex-wrap items-center gap-6 p-6 sm:p-8">
-          <div className="relative">
-            <div className="rounded-full p-1 bg-gradient-to-br from-[#12b6ff] via-brand-500 to-fuchsia-500">
-              <div className="rounded-full p-1 bg-white"><Avatar name={me?.display_name ?? ''} hue={hueOf(me?.email ?? '')} size={84} /></div>
-            </div>
-            <span className={clsx('absolute bottom-2 right-2 size-4 rounded-full ring-4 ring-white', chip.dot)} />
-          </div>
-          <div className="min-w-0 flex-1 basis-full sm:basis-0">
-            <div className="eyebrow">{fmtDate(now, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-            <h1 className="text-[28px] sm:text-[34px] font-extrabold leading-tight mt-1">{greeting(new Date(now))}, {firstName}</h1>
-            <p className="text-ink-500 mt-1">Small steps, consistent effort, big results. Have a productive day!</p>
-            <div className="flex flex-wrap gap-2 mt-4">
-              <span className={clsx('inline-flex items-center gap-2 rounded-full px-3 h-8 text-[12.5px] font-semibold ring-1', chip.cls)}>
-                <span className={clsx('size-2 rounded-full', chip.dot, state === 'WORKING' && 'animate-pulse2')} />{chip.label}
-                {att.data?.day && state !== 'NOT_CHECKED_IN' && <span className="font-normal opacity-75">· since {fmtTime(new Date(att.data.day.check_in_at))}</span>}
-              </span>
-              {emp?.employee_code && <span className="inline-flex items-center gap-1.5 rounded-full bg-white ring-1 ring-ink-200 px-3 h-8 text-[12.5px] font-medium text-ink-700"><IdCard size={14} className="text-ink-400" />{emp.employee_code}</span>}
-              {(profile?.designation ?? emp?.designation) && <span className="inline-flex items-center gap-1.5 rounded-full bg-white ring-1 ring-ink-200 px-3 h-8 text-[12.5px] font-medium text-ink-700"><Briefcase size={14} className="text-ink-400" />{profile?.designation ?? emp?.designation}</span>}
-              {emp?.status === 'PROBATION' && <span className="inline-flex items-center rounded-full bg-amber-50 ring-1 ring-amber-200 px-3 h-8 text-[12.5px] font-medium text-amber-800">Probation · ends {fmtDate(emp.probation_end, { day: 'numeric', month: 'short' })}</span>}
-            </div>
-          </div>
-          <div className="hidden xl:block rounded-2xl bg-white/70 backdrop-blur ring-1 ring-white px-6 py-5 text-right shadow-card">
-            <div className="font-display font-extrabold text-[34px] leading-none tabular-nums text-ink-900">
-              {new Intl.DateTimeFormat('en-IN', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true }).format(now)}
-            </div>
-            <div className="text-[12.5px] text-ink-500 mt-2">India Standard Time</div>
-            <div className="text-[12.5px] font-semibold text-brand-gradient mt-3">Great people build extraordinary things.</div>
+      <div className="flex flex-wrap items-end justify-between gap-4 animate-fade-up">
+        <div>
+          <div className="text-[13.5px] text-ink-500 font-medium">{fmtDate(now, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+          <h1 className="text-[30px] sm:text-[34px] font-extrabold leading-tight mt-1">{greeting(new Date(now))}, {me?.display_name.split(' ')[0]} <span className="inline-block origin-[70%_70%] animate-[wave_2.4s_ease-in-out_1]">👋</span></h1>
+          <p className="text-ink-500 mt-1 flex flex-wrap items-center gap-2">
+            Here’s your workday overview.
+            {emp?.status === 'PROBATION' && <span className="rounded-full bg-amber-50 text-amber-800 px-2.5 py-0.5 text-[12px] font-medium">Probation · ends {fmtDate(emp.probation_end, { day: 'numeric', month: 'short' })}</span>}
+          </p>
+        </div>
+        <div className="hidden md:flex items-center gap-4 rounded-2xl bg-white/80 ring-1 ring-ink-100 shadow-card px-5 py-4 max-w-[320px]">
+          <Quote size={22} className="text-brand-300 shrink-0 rotate-180" fill="currentColor" />
+          <p className="text-[13.5px] text-ink-600 leading-snug">Small steps every day lead to big results.</p>
+        </div>
+      </div>
+
+      <div className="grid xl:grid-cols-[minmax(0,1fr)_360px] gap-6">
+        <div className="space-y-4 min-w-0 animate-fade-up" style={{ animationDelay: '60ms' }}>
+          <TimeTracker att={att} />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Tile icon={LogIn} tone="bg-emerald-50 text-emerald-600" value={att.data?.day ? fmtTime(new Date(att.data.day.check_in_at)) : '—'} label="Checked in" sub={att.data?.day ? fmtDate(att.data.day.work_date, { day: 'numeric', month: 'short' }) : 'Not yet today'} />
+            <Tile icon={LogOut} tone="bg-rose-50 text-rose-500" value={state === 'CHECKED_OUT' && att.data?.day?.check_out_at ? fmtTime(new Date(att.data.day.check_out_at)) : earliestOut ?? '—'} label={state === 'CHECKED_OUT' ? 'Checked out' : 'Earliest check-out'} sub={`${(t?.presence_seconds ?? 32400) / 3600}h in office`} />
+            <Tile icon={Coffee} tone="bg-amber-50 text-amber-600" value={live ? hm(live.tea) : '—'} label="Tea breaks" sub={`${att.data?.tea_count ?? 0} taken today`} />
+            <Tile icon={UtensilsCrossed} tone="bg-sky-50 text-sky-600" value={live ? hm(live.lunch) : '—'} label="Lunch" sub={`Target 30–${(t?.lunch_exceed_seconds ?? 2700) / 60} min`} />
           </div>
         </div>
-      </section>
-
-      <div className="grid xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 animate-fade-up" style={{ animationDelay: '60ms' }}><TimeTracker att={att} /></div>
-        <ThisWeek days={days} today={today} monday={monday} joined={emp?.start_date} />
+        <Timeline events={att.data?.events} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="animate-fade-up" style={{ animationDelay: '140ms' }}>
-          <CardHeader icon={CalendarDays} title="This month" subtitle={fmtDate(today.slice(0, 7) + '-01', { month: 'long', year: 'numeric' })}
-            action={<Link to="/app/attendance" className="btn-ghost btn-sm">History <ArrowUpRight size={14} /></Link>} />
-          {days === null ? <div className="mx-5 mb-5 h-36 rounded-2xl bg-ink-50 animate-pulse" /> : (
-            <div className="px-5 pb-5 grid grid-cols-2 gap-3">
-              <Stat label="Days completed" value={worked.length} tone="text-emerald-600" />
-              <Stat label="Net work" value={hm(totalWork)} />
-              <Stat label="Average / day" value={worked.length ? hm(Math.round(totalWork / worked.length)) : '—'} />
-              <Stat label="Early check-outs" value={early} tone={early ? 'text-amber-600' : undefined} />
-              {missing > 0 && <p className="col-span-2 rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-[12.5px]">{missing} day{missing > 1 ? 's have' : ' has'} no check-out. Request a correction from My Attendance.</p>}
+        <Card className="p-5 animate-fade-up" style={{ animationDelay: '140ms' }}>
+          <Head icon={CalendarDays} title="This month" sub={fmtDate(`${month}-01`, { month: 'long', year: 'numeric' })} to="/app/attendance" link="View history" />
+          {days === null ? <div className="h-44 rounded-2xl bg-ink-50 animate-pulse" /> : (
+            <div className="grid grid-cols-2 gap-3">
+              <MonthStat label="Attendance" value={`${present.length} / ${workdays}`} sub="Days present" ring={present.length / Math.max(1, workdays)} color="#12b6ff" />
+              <MonthStat label="Work hours" value={hm(totalWork)} sub="This month" ring={totalWork / workTarget} color="#3d5afe" />
+              <MonthStat label="Average / day" value={closed.length ? hm(Math.round(totalWork / closed.length)) : '—'} sub={`Target ${(t?.work_seconds ?? 28800) / 3600}h`} />
+              <MonthStat label="Early check-outs" value={String(early)} sub="This month" warn={early > 0} />
             </div>
           )}
         </Card>
 
-        <Card className="animate-fade-up" style={{ animationDelay: '180ms' }}>
-          <CardHeader icon={ListChecks} title="Today’s activity" subtitle="Recorded by the server"
-            action={<Link to="/app/attendance" className="btn-ghost btn-sm">Timeline <ArrowUpRight size={14} /></Link>} />
-          <Activity events={att.data?.events} />
-        </Card>
-
-        <Card className="animate-fade-up" style={{ animationDelay: '220ms' }}>
-          <CardHeader icon={UserCircle} title="My details" subtitle={profile?.designation ?? emp?.designation}
-            action={<Link to="/app/profile" className="btn-ghost btn-sm">Profile <ArrowUpRight size={14} /></Link>} />
-          <dl className="px-5 pb-5 space-y-3 text-[13px]">
+        <Card className="p-5 animate-fade-up" style={{ animationDelay: '180ms' }}>
+          <Head icon={UserCircle} title="My details" to="/app/profile" link="View profile" />
+          <dl className="space-y-3 text-[13px]">
             {[
+              ['Name', me?.display_name],
+              ['Role', profile?.designation ?? emp?.designation],
               ['Department', profile?.department.name ?? emp?.department],
-              ['Reporting manager', profile ? profile.reporting_manager?.display_name ?? 'Not set yet' : '…'],
-              ['Joined', emp?.start_date ? fmtDate(emp.start_date) : '—'],
+              ['Manager', profile ? profile.reporting_manager?.display_name ?? 'Not set yet' : '…'],
               ['Work email', me?.email],
+              ['Joining date', emp?.start_date ? fmtDate(emp.start_date) : '—'],
+              ['Employment type', profile ? TYPE[profile.employment_type] : '…'],
             ].map(([k, v]) => (
-              <div key={k} className="flex justify-between gap-4 border-b border-ink-100 pb-3 last:border-0 last:pb-0">
+              <div key={k} className="flex justify-between gap-4">
                 <dt className="text-ink-500 shrink-0">{k}</dt><dd className="font-medium text-ink-800 text-right truncate">{v}</dd>
               </div>
             ))}
           </dl>
         </Card>
+
+        <Card className="p-5 animate-fade-up" style={{ animationDelay: '220ms' }}>
+          <Head icon={Zap} title="Quick actions" />
+          <div className="grid grid-cols-3 gap-2.5">
+            <QuickAction to="/app/attendance" icon={FilePen} label="Request correction" />
+            <QuickAction to="/app/attendance" icon={History} label="Attendance history" />
+            <QuickAction to="/app/profile" icon={UserPen} label="Update profile" />
+            <QuickAction to="/app/profile" icon={KeyRound} label="Change password" />
+            <QuickAction icon={CalendarPlus} label="Apply leave" soon />
+            <QuickAction icon={Receipt} label="View payslip" soon />
+          </div>
+        </Card>
       </div>
 
-      <section className="rounded-3xl border border-dashed border-ink-200 p-5 flex flex-wrap items-center gap-x-6 gap-y-3 animate-fade-up" style={{ animationDelay: '260ms' }}>
-        <span className="flex items-center gap-2.5 font-semibold text-ink-800"><span className="size-9 rounded-xl bg-brand-50 text-brand-600 grid place-items-center"><Rocket size={17} /></span>Coming soon</span>
-        {[
-          { icon: CalendarDays, label: 'Leave & balances' },
-          { icon: Sun, label: 'Holiday calendar' },
-          { icon: Receipt, label: 'Payslips' },
-          { icon: FileText, label: 'Documents & letters' },
-        ].map((x) => <span key={x.label} className="inline-flex items-center gap-2 text-[13px] text-ink-500"><x.icon size={15} className="text-ink-400" />{x.label}</span>)}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand-50 via-white to-sky-50 ring-1 ring-ink-100 px-6 py-5 flex flex-wrap items-center gap-5 animate-fade-up" style={{ animationDelay: '260ms' }}>
+        <ProfileArt />
+        <div className="flex-1 min-w-[220px]">
+          <div className="font-semibold text-ink-900">Keep your information updated</div>
+          <p className="text-[13px] text-ink-500 mt-0.5">Check your mobile number, address and emergency contact so HR can reach you.</p>
+        </div>
+        <Link to="/app/profile" className="btn h-11 px-5 bg-white text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50">Update profile <ArrowRight size={16} /></Link>
       </section>
     </div>
   )
 }
 
-/** Soft layered hills on the right of the banner, in brand tints. */
-function Hills() {
+function Head({ icon: Icon, title, sub, to, link }: { icon: typeof Clock; title: string; sub?: string; to?: string; link?: string }) {
   return (
-    <svg className="absolute inset-y-0 right-0 h-full w-[70%] pointer-events-none" viewBox="0 0 800 260" preserveAspectRatio="xMaxYMax slice" aria-hidden>
-      <defs>
-        <linearGradient id="h1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#c7d2fe" /><stop offset="1" stopColor="#eef2ff" /></linearGradient>
-        <linearGradient id="h2" x1="0" x2="1"><stop offset="0" stopColor="#bae6fd" /><stop offset="1" stopColor="#ddd6fe" /></linearGradient>
-        <linearGradient id="fadeL" x1="0" x2="1"><stop offset="0" stopColor="#fff" /><stop offset=".45" stopColor="#fff" stopOpacity="0" /></linearGradient>
-        <radialGradient id="sun"><stop offset="0" stopColor="#fde68a" stopOpacity=".9" /><stop offset="1" stopColor="#fde68a" stopOpacity="0" /></radialGradient>
-      </defs>
-      <circle cx="640" cy="70" r="90" fill="url(#sun)" />
-      <path d="M180 260 L360 120 L430 170 L540 70 L640 150 L720 110 L800 150 V260 Z" fill="url(#h1)" opacity=".9" />
-      <path d="M260 260 C380 190 460 200 560 160 C640 128 720 170 800 140 V260 Z" fill="url(#h2)" opacity=".75" />
-      <path d="M340 260 C460 225 560 230 660 205 C720 190 760 200 800 192 V260 Z" fill="#e0e7ff" />
-      <rect width="800" height="260" fill="url(#fadeL)" />
-    </svg>
+    <div className="flex items-center gap-3 mb-4">
+      <span className="size-10 rounded-xl bg-brand-50 text-brand-600 grid place-items-center shrink-0"><Icon size={19} /></span>
+      <div className="flex-1 min-w-0 leading-tight">
+        <h3 className="font-bold text-[16px] text-ink-900">{title}</h3>
+        {sub && <div className="text-[12.5px] text-ink-500 mt-0.5">{sub}</div>}
+      </div>
+      {to && <Link to={to} className="text-[13px] font-semibold text-brand-600 hover:text-brand-800 inline-flex items-center gap-1">{link} <ArrowRight size={14} /></Link>}
+    </div>
   )
 }
 
-function ThisWeek({ days, today, monday, joined }: { days: HistoryDay[] | null; today: string; monday: string; joined?: string }) {
-  const byDate = new Map((days ?? []).map((d) => [d.work_date, d]))
-  const week = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
-  const kind = (date: string, i: number) => {
-    const d = byDate.get(date)
-    if (date > today) return 'upcoming'
-    if (d?.status === 'OPEN') return date === today ? 'live' : 'missing'
-    if (d) return d.shortfall_reason ? 'early' : 'done'
-    if (i >= 5) return 'off'
-    if (date === today) return 'today'
-    return joined && date < joined ? 'off' : 'none'
-  }
-  const STYLE = {
-    done: { icon: <Check size={15} strokeWidth={3} />, cls: 'bg-emerald-500 text-white', label: 'Complete' },
-    early: { icon: <Check size={15} strokeWidth={3} />, cls: 'bg-amber-500 text-white', label: 'Early check-out' },
-    live: { icon: <Clock size={15} />, cls: 'bg-gradient-to-br from-[#12b6ff] to-brand-600 text-white', label: 'In progress' },
-    missing: { icon: <X size={15} strokeWidth={3} />, cls: 'bg-rose-500 text-white', label: 'Missing check-out' },
-    today: { icon: <Clock size={15} />, cls: 'bg-brand-50 text-brand-600 ring-1 ring-brand-200', label: 'Today' },
-    none: { icon: <Minus size={15} />, cls: 'bg-ink-100 text-ink-400', label: 'No record' },
-    off: { icon: <Minus size={15} />, cls: 'bg-ink-50 text-ink-300', label: 'Off' },
-    upcoming: { icon: null, cls: 'bg-white border border-dashed border-ink-200', label: 'Upcoming' },
-  } as const
+function Tile({ icon: Icon, tone, value, label, sub }: { icon: typeof Clock; tone: string; value: string; label: string; sub: string }) {
   return (
-    <Card className="animate-fade-up flex flex-col" style={{ animationDelay: '100ms' }}>
-      <CardHeader icon={CalendarDays} title="This week" subtitle={`${fmtDate(monday, { day: 'numeric', month: 'short' })} – ${fmtDate(addDays(monday, 6), { day: 'numeric', month: 'short' })}`} />
-      {days === null ? <div className="mx-5 mb-5 h-40 rounded-2xl bg-ink-50 animate-pulse" /> : (
-        <div className="px-5 pb-5 flex-1 flex flex-col">
-          <ol className="grid grid-cols-7 gap-1.5">
-            {week.map((date, i) => {
-              const k = kind(date, i)
-              const s = STYLE[k]
-              const d = byDate.get(date)
-              return (
-                <li key={date} title={`${fmtDate(date, { weekday: 'long', day: 'numeric', month: 'short' })} · ${s.label}${d && d.status === 'CLOSED' ? ` · ${hm(d.work_seconds)}` : ''}`}
-                  className={clsx('flex flex-col items-center gap-2 rounded-2xl py-3', date === today && 'bg-brand-50/70 ring-1 ring-brand-100')}>
-                  <span className={clsx('text-[11px] font-semibold uppercase', date === today ? 'text-brand-600' : 'text-ink-400')}>{fmtDate(date, { weekday: 'short' }).slice(0, 3)}</span>
-                  <span className={clsx('text-[15px] font-bold tabular-nums', date === today ? 'text-brand-700' : 'text-ink-800')}>{Number(date.slice(8))}</span>
-                  <span className={clsx('size-7 rounded-full grid place-items-center', s.cls)}>{s.icon}</span>
-                </li>
-              )
-            })}
-          </ol>
-          <ul className="mt-auto pt-5 flex flex-wrap gap-x-4 gap-y-2 text-[11.5px] text-ink-500">
-            {(['done', 'early', 'missing', 'off'] as const).map((k) => (
-              <li key={k} className="flex items-center gap-1.5"><span className={clsx('size-2.5 rounded-full', STYLE[k].cls.split(' ')[0])} />{STYLE[k].label}</li>
-            ))}
-          </ul>
+    <div className="card p-4 flex items-center gap-3.5 min-w-0">
+      <span className={clsx('size-11 rounded-2xl grid place-items-center shrink-0', tone)}><Icon size={20} /></span>
+      <div className="min-w-0 leading-tight">
+        <div className="font-display font-extrabold text-[20px] text-ink-900 tabular-nums truncate">{value}</div>
+        <div className="text-[12.5px] font-medium text-ink-700 truncate mt-0.5">{label}</div>
+        <div className="text-[11.5px] text-ink-400 truncate">{sub}</div>
+      </div>
+    </div>
+  )
+}
+
+function MonthStat({ label, value, sub, ring, color, warn }: { label: string; value: string; sub: string; ring?: number; color?: string; warn?: boolean }) {
+  return (
+    <div className="rounded-2xl bg-ink-50/80 p-3.5 flex items-center gap-2 min-w-0">
+      <div className="min-w-0 flex-1">
+        <div className="text-[12px] text-ink-500 truncate">{label}</div>
+        <div className={clsx('font-display font-extrabold text-[20px] tabular-nums mt-0.5 truncate', warn ? 'text-amber-600' : 'text-ink-900')}>{value}</div>
+        <div className="text-[11.5px] text-ink-400 truncate">{sub}</div>
+      </div>
+      {ring !== undefined && (
+        <ProgressRing value={ring} size={54} stroke={6} color={color}>
+          <span className="text-[11px] font-bold text-ink-700">{Math.round(Math.min(1, ring) * 100)}%</span>
+        </ProgressRing>
+      )}
+    </div>
+  )
+}
+
+function QuickAction({ to, icon: Icon, label, soon }: { to?: string; icon: typeof Clock; label: string; soon?: boolean }) {
+  const body = (
+    <>
+      <Icon size={20} className={soon ? 'text-ink-300' : 'text-brand-600'} />
+      <span className={clsx('text-[12px] font-medium leading-tight', soon ? 'text-ink-400' : 'text-ink-700')}>{label}</span>
+      {soon && <span className="absolute top-1.5 right-1.5 text-[9px] font-semibold uppercase tracking-wide text-ink-400 bg-ink-50 rounded-full px-1.5">Soon</span>}
+    </>
+  )
+  const cls = 'relative flex flex-col items-center justify-center gap-2 text-center rounded-2xl ring-1 ring-ink-100 h-[88px] px-2 transition'
+  return soon
+    ? <div className={clsx(cls, 'bg-ink-50/40 cursor-default')} title="Coming soon">{body}</div>
+    : <Link to={to!} className={clsx(cls, 'bg-white hover:ring-brand-200 hover:shadow-card hover:-translate-y-0.5')}>{body}</Link>
+}
+
+function Timeline({ events }: { events?: AttEventDTO[] }) {
+  const shown = (events ?? []).filter((e) => EVENT[e.type])
+  return (
+    <Card className="p-5 flex flex-col animate-fade-up" style={{ animationDelay: '100ms' }}>
+      <Head icon={Clock} title="Today’s timeline" sub="Recorded by the server" to="/app/attendance" link="View all" />
+      {!events ? <div className="flex-1 min-h-40 rounded-2xl bg-ink-50 animate-pulse" /> : shown.length === 0 ? (
+        <div className="flex-1 grid place-items-center text-center py-8">
+          <div>
+            <div className="size-14 rounded-2xl bg-brand-50 text-brand-400 grid place-items-center mx-auto"><Clock size={24} /></div>
+            <p className="text-[13.5px] font-medium text-ink-700 mt-3">Nothing yet today</p>
+            <p className="text-[12.5px] text-ink-400 mt-1 max-w-[220px]">Your check-in, breaks and check-out will appear here with their times.</p>
+          </div>
         </div>
+      ) : (
+        <ol className="space-y-0">
+          {shown.map((e, i) => {
+            const m = EVENT[e.type]
+            return (
+              <li key={e.at + e.type} className="grid grid-cols-[66px_16px_1fr_auto] items-start gap-2 pb-5 last:pb-0 relative">
+                <span className="text-[12.5px] text-ink-500 tabular-nums pt-0.5 whitespace-nowrap">{fmtTime(new Date(e.at))}</span>
+                <span className="relative flex justify-center pt-1.5">
+                  <span className={clsx('size-2.5 rounded-full ring-4 ring-white z-10', m.dot)} />
+                  {i < shown.length - 1 && <span className="absolute top-4 -bottom-5 w-px bg-ink-200" />}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13.5px] font-semibold text-ink-800">{m.label}</div>
+                  <div className="text-[12px] text-ink-400 truncate">{e.by_admin ? 'By Super Admin' : e.note || 'Office'}</div>
+                </div>
+                {m.pill && <span className={clsx('text-[11px] font-semibold rounded-lg px-2 py-0.5', m.pill[1])}>{m.pill[0]}</span>}
+              </li>
+            )
+          })}
+        </ol>
       )}
     </Card>
   )
 }
 
-function Activity({ events }: { events?: AttEventDTO[] }) {
-  if (!events) return <div className="mx-5 mb-5 h-36 rounded-2xl bg-ink-50 animate-pulse" />
-  const shown = events.filter((e) => EVENT[e.type]).slice(-5).reverse()
-  if (shown.length === 0) {
-    return (
-      <div className="px-5 pb-6 pt-2 text-center">
-        <div className="size-12 rounded-2xl bg-ink-50 text-ink-300 grid place-items-center mx-auto"><Clock size={22} /></div>
-        <p className="text-[13px] text-ink-500 mt-3">Nothing yet today. Your check-in, breaks and check-out will show up here.</p>
-      </div>
-    )
-  }
+function ProfileArt(): ReactNode {
   return (
-    <ol className="px-5 pb-5 relative">
-      {shown.map((e, i) => {
-        const m = EVENT[e.type]
-        return (
-          <li key={e.at + e.type} className="flex gap-3 relative pb-4 last:pb-0">
-            {i < shown.length - 1 && <span className="absolute left-[17px] top-9 bottom-0 w-px bg-ink-100" />}
-            <span className={clsx('size-9 rounded-xl grid place-items-center shrink-0', m.cls)}><m.icon size={16} /></span>
-            <div className="min-w-0 flex-1 pt-0.5">
-              <div className="text-[13.5px] font-medium text-ink-800">{m.label}{e.by_admin && <span className="text-ink-400 font-normal"> · by Super Admin</span>}</div>
-              <div className="text-[12px] text-ink-400">{fmtTime(new Date(e.at))}</div>
-            </div>
-          </li>
-        )
-      })}
-    </ol>
-  )
-}
-
-function Stat({ label, value, tone }: { label: string; value: React.ReactNode; tone?: string }) {
-  return (
-    <div className="rounded-2xl bg-ink-50/80 p-3.5">
-      <div className="text-[12px] text-ink-500">{label}</div>
-      <div className={clsx('font-display font-extrabold text-[22px] mt-0.5 tabular-nums', tone ?? 'text-ink-900')}>{value}</div>
-    </div>
+    <svg width="92" height="64" viewBox="0 0 92 64" className="shrink-0" aria-hidden>
+      <ellipse cx="46" cy="58" rx="40" ry="5" fill="#c7d2fe" opacity=".6" />
+      <rect x="18" y="14" width="56" height="38" rx="8" fill="#fff" stroke="#c7d2fe" strokeWidth="2" />
+      <circle cx="34" cy="31" r="8" fill="url(#pa)" />
+      <rect x="47" y="25" width="20" height="4" rx="2" fill="#a5b4fc" />
+      <rect x="47" y="33" width="14" height="4" rx="2" fill="#dbe4ff" />
+      <circle cx="74" cy="14" r="9" fill="#3d5afe" />
+      <path d="m70 14 3 3 5-6" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <defs><linearGradient id="pa" x1="0" x2="1"><stop offset="0" stopColor="#12b6ff" /><stop offset="1" stopColor="#8b3dff" /></linearGradient></defs>
+    </svg>
   )
 }
