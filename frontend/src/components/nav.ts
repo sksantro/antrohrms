@@ -11,15 +11,15 @@ export interface NavSection { title: string; items: NavItem[] }
 const SELF: NavSection = {
   title: 'My workspace',
   items: [
-    { to: '/app/home', label: 'Home', icon: LayoutDashboard },
-    { to: '/app/attendance', label: 'My Attendance', icon: Clock },
-    { to: '/app/leave', label: 'My Leave', icon: CalendarDays, sample: 'P2' },
+    { to: '/app/home', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/app/attendance', label: 'Attendance', icon: Clock },
+    { to: '/app/leave', label: 'Leave', icon: CalendarDays, sample: 'P2' },
     { to: '/app/holidays', label: 'Holiday Calendar', icon: Sun, sample: 'P2' },
-    { to: '/app/payslips', label: 'My Payslips', icon: Receipt, sample: 'P2' },
-    { to: '/app/documents', label: 'My Documents', icon: FileText, planned: 'P3' },
-    { to: '/app/assets', label: 'My Assets', icon: Laptop, sample: 'P4' },
-    { to: '/app/appraisal', label: 'My Appraisal', icon: Star, planned: 'P5' },
-    { to: '/app/resignation', label: 'My Resignation', icon: LogOut, planned: 'P4' },
+    { to: '/app/payslips', label: 'Payslips', icon: Receipt, sample: 'P2' },
+    { to: '/app/documents', label: 'Documents', icon: FileText, planned: 'P3' },
+    { to: '/app/assets', label: 'Assets', icon: Laptop, sample: 'P4' },
+    { to: '/app/appraisal', label: 'Appraisal', icon: Star, planned: 'P5' },
+    { to: '/app/resignation', label: 'Resignation', icon: LogOut, planned: 'P4' },
     { to: '/app/profile', label: 'My Profile', icon: UserCircle },
   ],
 }

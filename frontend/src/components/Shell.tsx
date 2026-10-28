@@ -6,7 +6,8 @@ import { NOTIFICATIONS, ROLE_LABEL, type Role } from '../lib/data'
 import { useAuth } from '../lib/auth'
 import { useMe, useStore } from '../lib/store'
 import { homeFor, navFor } from './nav'
-import { Avatar, useDialog, useEscape } from './ui'
+import { useDialog, useEscape } from './ui'
+import { initials } from '../lib/format'
 
 export function Logo({ light, size = 'md' }: { light?: boolean; size?: 'md' | 'lg' }) {
   const lg = size === 'lg'
@@ -36,19 +37,18 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               {s.items.map((it) => (
                 <li key={it.to}>
                   <NavLink to={it.to} end onClick={onNavigate}
-                    title={it.planned ? `Planned for phase ${it.planned}` : undefined}
+                    title={it.planned ? 'Coming soon' : undefined}
                     className={({ isActive }) => clsx(
-                      'group relative flex items-center gap-3 px-3 h-11 rounded-2xl text-[14px] font-medium transition-colors',
-                      isActive ? 'bg-gradient-to-r from-[#2338c9] to-[#2f6bff] text-white font-semibold shadow-[0_10px_24px_-10px_rgba(47,107,255,.7)]' : it.planned ? 'text-ink-400 hover:bg-ink-50 hover:text-ink-600' : 'text-ink-600 hover:bg-ink-50 hover:text-ink-900',
+                      'group relative flex items-center gap-3 px-3.5 h-11 rounded-xl text-[14px] font-medium transition-colors',
+                      isActive ? 'bg-gradient-to-r from-[#2338c9] to-[#2f6bff] text-white font-semibold shadow-[0_10px_24px_-10px_rgba(47,107,255,.7)]' : 'text-ink-600 hover:bg-brand-50/60 hover:text-ink-900',
                     )}>
                     {({ isActive }) => (
                       <>
-                        <it.icon size={19} strokeWidth={isActive ? 2.2 : 1.8} className={clsx(isActive ? 'text-white' : it.planned ? 'text-ink-300' : 'text-ink-400 group-hover:text-ink-700')} />
+                        <it.icon size={19} strokeWidth={isActive ? 2.2 : 1.8} className={clsx(isActive ? 'text-white' : 'text-ink-500 group-hover:text-brand-600')} />
                         <span className="flex-1 truncate">{it.label}</span>
                         {it.badge === 'approvals' && approvals.length > 0 && (
                           <span className="text-[11px] font-bold rounded-full px-1.5 min-w-5 text-center bg-brand-600 text-white">{approvals.length}</span>
                         )}
-                        {it.planned && <span className="text-[9.5px] font-semibold uppercase tracking-wide rounded-full px-1.5 py-px text-ink-400 bg-ink-50">Soon</span>}
                       </>
                     )}
                   </NavLink>
@@ -58,18 +58,11 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         ))}
       </div>
-      <div className="relative mt-2 h-[230px] shrink-0 overflow-hidden">
-        {/* Flowing brand shapes behind the security note. */}
-        <svg className="absolute inset-0 size-full" viewBox="0 0 264 230" preserveAspectRatio="xMinYMax slice" aria-hidden>
-          <defs>
-            <linearGradient id="sb1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#3ee0ff" /><stop offset=".55" stopColor="#3d5afe" /><stop offset="1" stopColor="#b14dff" /></linearGradient>
-            <linearGradient id="sb2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stopColor="#8b3dff" /><stop offset="1" stopColor="#12b6ff" /></linearGradient>
-          </defs>
-          <path d="M-20 230 C 10 150, 0 80, 40 40 C 70 10, 110 30, 100 80 C 92 120, 60 140, 70 190 C 75 215, 90 230, 90 230 Z" fill="url(#sb1)" opacity=".85" />
-          <path d="M60 230 C 70 170, 120 150, 150 110 C 170 85, 200 95, 190 130 C 180 170, 130 190, 140 230 Z" fill="url(#sb2)" opacity=".55" />
-          <path d="M-10 120 C 20 100, 30 60, 70 70 C 50 90, 40 120, -10 150 Z" fill="#a5f3fc" opacity=".5" />
-        </svg>
-        <div className="absolute left-3 right-3 bottom-3 rounded-2xl bg-white/85 backdrop-blur-md ring-1 ring-white shadow-lift p-3.5 flex gap-3">
+      <div className="relative mt-2 h-[250px] shrink-0 overflow-hidden">
+        {/* The logo's fluid hand as a big 3D sculpture rising behind the security note. */}
+        <div className="absolute -left-10 bottom-10 size-56 rounded-full bg-gradient-to-tr from-[#12b6ff]/30 via-brand-500/25 to-fuchsia-500/25 blur-2xl" />
+        <img src="/brand/antro-mark.webp" alt="" className="absolute -left-16 -bottom-4 w-[270px] max-w-none -rotate-[18deg] drop-shadow-[0_20px_30px_rgba(61,90,254,.35)]" />
+        <div className="absolute left-3 right-3 bottom-3 rounded-2xl bg-white/80 backdrop-blur-xl ring-1 ring-white shadow-lift p-3.5 flex gap-3">
           <ShieldCheck size={26} className="text-brand-600 shrink-0" strokeWidth={1.7} />
           <div className="leading-tight">
             <div className="text-[13px] font-semibold text-ink-900">Your data is secure</div>
@@ -91,10 +84,10 @@ function RoleSwitcher() {
   return (
     <div className="relative">
       <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-3 pl-1.5 pr-2.5 h-12 rounded-2xl hover:bg-ink-50 transition" aria-haspopup="menu" aria-expanded={open}>
-        <Avatar name={me.name} hue={me.hue} size={38} />
+        <span className="size-10 rounded-full grid place-items-center bg-gradient-to-br from-sky-100 to-brand-100 text-brand-700 text-[13px] font-bold ring-2 ring-white shadow-card">{initials(me.name)}</span>
         <div className="text-left leading-tight hidden sm:block">
           <div className="text-[14px] font-semibold text-ink-900">{me.name}</div>
-          <div className="text-[11.5px] text-ink-500">{ROLE_LABEL[role]}{me.code !== '—' && <> · {me.code}</>}</div>
+          <div className="text-[12px] text-ink-500">{me.designation || ROLE_LABEL[role]}</div>
         </div>
         <ChevronDown size={15} className="text-ink-400" />
       </button>
@@ -251,7 +244,7 @@ export default function Shell() {
   const navRef = useDialog(mobileNav)
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-[radial-gradient(60%_50%_at_80%_0%,rgba(199,210,254,.45),transparent_70%),radial-gradient(40%_40%_at_100%_100%,rgba(186,230,253,.35),transparent_70%)]">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] btn-dark">Skip to content</a>
       <aside className="hidden lg:block w-[264px] shrink-0 border-r border-ink-100 bg-white sticky top-0 h-screen">
         <Sidebar />
@@ -277,7 +270,7 @@ export default function Shell() {
           <Notifications />
           <RoleSwitcher />
         </header>
-        <main id="main" tabIndex={-1} className="flex-1 px-4 sm:px-8 py-6 sm:py-8 max-w-[1440px] w-full mx-auto outline-none">
+        <main id="main" tabIndex={-1} className="flex-1 px-4 sm:px-8 xl:px-10 py-6 sm:py-8 w-full outline-none">
           <Outlet />
         </main>
       </div>

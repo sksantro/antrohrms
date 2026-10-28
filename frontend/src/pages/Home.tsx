@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { ArrowRight, CalendarDays, CalendarPlus, Clock, Coffee, FilePen, History, KeyRound, LogIn, LogOut, MapPin, Play, Quote, Receipt, UserCircle, UserPen, UtensilsCrossed, Zap } from 'lucide-react'
+import { ArrowRight, CalendarDays, CalendarPlus, ChevronRight, Clock, Coffee, FilePen, History, KeyRound, LogIn, LogOut, MapPin, Play, Quote, Receipt, UserCircle, UserPen, UtensilsCrossed, Zap } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import TimeTracker from '../components/TimeTracker'
@@ -68,7 +68,7 @@ export default function Home() {
       <div className="flex flex-wrap items-end justify-between gap-4 animate-fade-up">
         <div>
           <div className="text-[13.5px] text-ink-500 font-medium">{fmtDate(now, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-          <h1 className="text-[30px] sm:text-[34px] font-extrabold leading-tight mt-1">{greeting(new Date(now))}, {me?.display_name.split(' ')[0]} <span className="inline-block origin-[70%_70%] animate-[wave_2.4s_ease-in-out_1]">👋</span></h1>
+          <h1 className="text-[32px] sm:text-[40px] font-extrabold leading-tight tracking-tight mt-1">{greeting(new Date(now))}, {me?.display_name.split(' ')[0]} <span className="inline-block origin-[70%_70%] animate-[wave_2.4s_ease-in-out_1]">👋</span></h1>
           <p className="text-ink-500 mt-1 flex flex-wrap items-center gap-2">
             Here’s your workday overview.
             {emp?.status === 'PROBATION' && <span className="rounded-full bg-amber-50 text-amber-800 px-2.5 py-0.5 text-[12px] font-medium">Probation · ends {fmtDate(emp.probation_end, { day: 'numeric', month: 'short' })}</span>}
@@ -165,14 +165,15 @@ function Head({ icon: Icon, title, sub, to, link }: { icon: typeof Clock; title:
 
 function Tile({ icon: Icon, tone, value, label, sub }: { icon: typeof Clock; tone: string; value: string; label: string; sub: string }) {
   return (
-    <div className="card p-4 flex items-center gap-3.5 min-w-0">
-      <span className={clsx('size-11 rounded-2xl grid place-items-center shrink-0', tone)}><Icon size={20} /></span>
-      <div className="min-w-0 leading-tight">
-        <div className="font-display font-extrabold text-[20px] text-ink-900 tabular-nums truncate">{value}</div>
+    <Link to="/app/attendance" className="card p-4 flex items-center gap-3.5 min-w-0 group hover:shadow-lift hover:-translate-y-0.5 transition">
+      <span className={clsx('size-12 rounded-2xl grid place-items-center shrink-0', tone)}><Icon size={21} /></span>
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className="font-display font-extrabold text-[22px] text-ink-900 tabular-nums truncate">{value}</div>
         <div className="text-[12.5px] font-medium text-ink-700 truncate mt-0.5">{label}</div>
         <div className="text-[11.5px] text-ink-400 truncate">{sub}</div>
       </div>
-    </div>
+      <ChevronRight size={18} className="text-ink-300 group-hover:text-brand-600 shrink-0 self-start mt-1" />
+    </Link>
   )
 }
 
@@ -245,17 +246,26 @@ function Timeline({ events }: { events?: AttEventDTO[] }) {
   )
 }
 
+/** A person working on a laptop, in brand colours. */
 function ProfileArt(): ReactNode {
   return (
-    <svg width="92" height="64" viewBox="0 0 92 64" className="shrink-0" aria-hidden>
-      <ellipse cx="46" cy="58" rx="40" ry="5" fill="#c7d2fe" opacity=".6" />
-      <rect x="18" y="14" width="56" height="38" rx="8" fill="#fff" stroke="#c7d2fe" strokeWidth="2" />
-      <circle cx="34" cy="31" r="8" fill="url(#pa)" />
-      <rect x="47" y="25" width="20" height="4" rx="2" fill="#a5b4fc" />
-      <rect x="47" y="33" width="14" height="4" rx="2" fill="#dbe4ff" />
-      <circle cx="74" cy="14" r="9" fill="#3d5afe" />
-      <path d="m70 14 3 3 5-6" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <defs><linearGradient id="pa" x1="0" x2="1"><stop offset="0" stopColor="#12b6ff" /><stop offset="1" stopColor="#8b3dff" /></linearGradient></defs>
+    <svg width="120" height="76" viewBox="0 0 120 76" className="shrink-0 -my-2" aria-hidden>
+      <defs><linearGradient id="pa" x1="0" x2="1"><stop offset="0" stopColor="#12b6ff" /><stop offset="1" stopColor="#5b5cff" /></linearGradient></defs>
+      <ellipse cx="60" cy="71" rx="48" ry="4" fill="#c7d2fe" opacity=".7" />
+      <circle cx="96" cy="16" r="10" fill="#e0e7ff" />
+      <path d="M90 16h12M96 10v12" stroke="#818cf8" strokeWidth="2" strokeLinecap="round" opacity=".7" />
+      {/* hair + head */}
+      <path d="M44 22c0-9 7-14 15-13 9 1 13 8 12 16-1 5-3 6-3 6l-2-9c-4 1-10 0-14-4-2 3-4 5-6 5l-1 5s-1-2-1-6z" fill="#1e1b4b" />
+      <circle cx="58" cy="24" r="8.5" fill="#fcd9bd" />
+      <path d="M50 20c3-4 10-6 16-2" stroke="#1e1b4b" strokeWidth="4" strokeLinecap="round" />
+      {/* body */}
+      <path d="M40 70c0-15 7-30 18-30s18 15 18 30z" fill="url(#pa)" />
+      {/* laptop */}
+      <path d="M30 48h40l-6 20H24z" fill="#1e293b" />
+      <path d="M22 68h50v3H22z" fill="#334155" />
+      <circle cx="47" cy="58" r="2" fill="#7dd3fc" />
+      {/* arm */}
+      <path d="M70 52c-6 3-11 6-16 10" stroke="#fcd9bd" strokeWidth="5" strokeLinecap="round" />
     </svg>
   )
 }
