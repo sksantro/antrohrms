@@ -62,7 +62,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           <div className="animate-fade-up">
             <div className="text-[12px] font-semibold tracking-[.32em] text-ink-500 dark:text-white/50">PEOPLE · PROGRESS · POSSIBILITY</div>
             <h1 className="mt-6 text-[clamp(44px,4.4vw,66px)] leading-[1.02] font-extrabold tracking-[-0.03em] text-ink-950 dark:text-white">
-              Great people build <span className="text-brand-gradient">extraordinary things.</span>
+              Antro PAI <span className="text-brand-gradient">Technology</span>
             </h1>
             <div className="mt-7 h-1 w-16 rounded-full bg-gradient-to-r from-[#12b6ff] via-brand-500 to-fuchsia-500" />
             <p className="mt-7 max-w-[420px] text-[17px] leading-relaxed text-ink-600 dark:text-white/65">
