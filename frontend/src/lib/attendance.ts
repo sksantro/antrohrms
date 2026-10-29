@@ -2,15 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, type LocationPayload, type TodayDTO } from './api'
 import { useStore } from './store'
 
-const CONSENT_KEY = 'antro:geo-consent'
-
-export function hasGeoConsent() {
-  try { return localStorage.getItem(CONSENT_KEY) === 'yes' } catch { return false }
-}
-export function giveGeoConsent() {
-  try { localStorage.setItem(CONSENT_KEY, 'yes') } catch { /* consent is asked again next time */ }
-}
-
 /** One browser location reading. Never throws: failures become a reason the server records for review. */
 /**
  * Laptops often give a rough first fix (±50–150 m) that sharpens over a few seconds. Watch the position for up to

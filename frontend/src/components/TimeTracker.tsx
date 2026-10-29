@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { AlertTriangle, BellRing, Building2, Coffee, House, LogIn, LogOut, MapPin, MapPinOff, Play, RefreshCw, ShieldCheck, Sun, UtensilsCrossed } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, type ProofStatus, type TodayDTO } from '../lib/api'
-import { giveGeoConsent, hasGeoConsent, readLocation, type TodayHook } from '../lib/attendance'
+import { readLocation, type TodayHook } from '../lib/attendance'
 import { fmtDate, fmtTime, hm, mmss } from '../lib/format'
 import { useStore } from '../lib/store'
 import { Modal, ProgressRing } from './ui'
@@ -51,7 +51,6 @@ function BigDuration({ sec }: { sec: number }) {
 export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean }) {
   const { toast } = useStore()
   const { data, live, error, busy, refresh } = att
-  const [consentOpen, setConsentOpen] = useState(false)
   const [reasonOpen, setReasonOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [locating, setLocating] = useState(false)
@@ -132,19 +131,21 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const wfh = data.day?.mode === 'WFH'
   const stateLabel = state === 'WORKING' ? (wfh ? 'Working from home' : 'Working from office') : meta.label
 
-  const doCheckIn = async (withLocation: boolean) => {
-    setConsentOpen(false)
-    const loc = withLocation ? await locate() : { location_error: 'skipped by employee' }
+  // Office check-in asks the browser for location straight away; the policy was accepted when the account was set up.
+  const doCheckIn = async () => {
+    const loc = await locate()
     try {
       const d = await att.checkIn({ ...loc, mode: 'WFO' })
       const p = d.day?.proof
       toast(p === 'VERIFIED'
         ? { tone: 'success', title: 'Checked in', body: 'Location verified within the office radius.' }
-        : { tone: 'info', title: 'Checked in · location not confirmed', body: 'Your time counts. The Super Admin will verify your location.' })
+        : loc.location_error === 'permission denied'
+          ? { tone: 'info', title: 'Checked in · location is blocked', body: 'Your time counts. To turn location on, click the lock icon next to the web address and allow Location.' }
+          : { tone: 'info', title: 'Checked in · location not confirmed', body: 'Your time counts. The Super Admin will verify your location.' })
     } catch (e) { fail(e) }
   }
   const startCheckIn = () => setCheckInOpen(true)
-  const chooseOffice = () => { setCheckInOpen(false); if (hasGeoConsent()) doCheckIn(true); else setConsentOpen(true) }
+  const chooseOffice = () => { setCheckInOpen(false); doCheckIn() }
   const checkInHome = async (plan: string, emergency: string) => {
     try {
       await att.checkIn({ mode: 'WFH', plan, emergency_reason: emergency })
@@ -156,17 +157,17 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   // Office days check location on every resume (owner rule); home days don't use location.
   const resumeWork = async () => {
     const elapsed = live.breakElapsed
-    const loc = wfh ? {} : hasGeoConsent() ? await locate() : { location_error: 'location not shared' }
+    const loc = wfh ? {} : await locate()
     act(() => att.resume(loc), 'Back to work', `Break lasted ${mmss(elapsed)}.`)
   }
   const needReason = short || stale
   const tryCheckout = async () => {
     if (wfh || needReason) { setReasonOpen(true); return }
-    const loc = hasGeoConsent() ? await locate() : {}
+    const loc = await locate()
     act(() => att.checkOut('', loc), 'Checked out', `Great day: ${hm(live.work)} of work logged.`)
   }
   const confirmCheckout = async () => {
-    const loc = wfh ? {} : hasGeoConsent() ? await locate() : {}
+    const loc = wfh ? {} : await locate()
     try {
       await att.checkOut(needReason ? reason : '', wfh ? {} : loc, wfh ? summary : '')
       setReasonOpen(false); setReason(''); setSummary('')
@@ -274,18 +275,6 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
           </div>
         </div>
       </div>
-
-      <Modal open={consentOpen} onClose={() => setConsentOpen(false)} title="Check in with your location"
-        footer={<>
-          <button className="btn-ghost" onClick={() => doCheckIn(false)}>Check in without location</button>
-          <button className="btn-primary" onClick={() => { giveGeoConsent(); doCheckIn(true) }}><MapPin size={16} /> Allow & check in</button>
-        </>}>
-        <div className="space-y-3 text-[13.5px] text-ink-600">
-          <p>Antro HRMS checks that you’re within the office radius <b>only when you check in, come back from a break, and check out from the office</b>. Work-from-home days never use your location. It never tracks you in the background.</p>
-          <p>Your browser will ask for permission next. If you skip it or it fails, you can still check in. The Super Admin will just verify it manually.</p>
-          <p className="text-[12px] text-ink-400">Only the Super Admin can see location readings. They’re kept for 30 days.</p>
-        </div>
-      </Modal>
 
       <Modal open={reasonOpen} onClose={() => setReasonOpen(false)} title={stale ? 'Check out your previous day' : wfh ? 'Wrap up your day' : 'Checking out early?'}
         footer={<>
