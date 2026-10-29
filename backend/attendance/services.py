@@ -71,16 +71,18 @@ def haversine_m(lat1, lon1, lat2, lon2) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def evaluate_location(site: OfficeSite | None, loc: Location | None, unavailable_reason: str = "") -> tuple[str, int | None, str]:
+def evaluate_location(site: OfficeSite | None, loc: Location | None, unavailable_reason: str = "",
+                      max_accuracy_m: float = 100) -> tuple[str, int | None, str]:
     """Return (proof, distance_m, note). Never claims physical presence — only that the browser's
-    reported position is within the radius (BRD §4.3)."""
+    reported position is within the radius (BRD §4.3). A reading centred inside the radius also counts when
+    its accuracy is within ``max_accuracy_m``: laptops rarely report better than ±50–100 m indoors."""
     if site is None or site.latitude is None or site.longitude is None:
         return Proof.INCONCLUSIVE, None, "Office location not configured yet"
     if loc is None:
         return Proof.INCONCLUSIVE, None, f"Location unavailable{': ' + unavailable_reason if unavailable_reason else ''}"
     d = haversine_m(float(site.latitude), float(site.longitude), loc.latitude, loc.longitude)
     acc, radius = max(0.0, loc.accuracy_m), site.radius_m
-    if d + acc <= radius:
+    if d + acc <= radius or (d <= radius and acc <= max_accuracy_m):
         return Proof.VERIFIED, round(d), ""
     if d - acc > radius:
         return Proof.FAILED, round(d), f"About {round(d)} m from the office"
@@ -89,6 +91,32 @@ def evaluate_location(site: OfficeSite | None, loc: Location | None, unavailable
 
 def office_site(org) -> OfficeSite | None:
     return OfficeSite.objects.filter(organization=org, is_active=True).first()
+
+
+def check_location(org, location: Location | None, unavailable_reason: str = "") -> tuple[str, int | None, str]:
+    return evaluate_location(office_site(org), location, unavailable_reason, float(policy(org, "geofence.max_accuracy_m", 100)))
+
+
+def require_at_office(org, location: Location | None, unavailable_reason: str, action: str) -> tuple[str, int | None, str]:
+    """Office check-in and resume need a confirmed reading inside the radius (owner rule, 29 Oct 2026).
+    Check-out is never blocked, so nobody is left stuck in an open day."""
+    site = office_site(org)
+    if site is None or site.latitude is None or site.longitude is None:
+        raise BusinessRuleError("OFFICE_NOT_SET", f"You can't {action} yet: the office location hasn't been set. Ask the Super Admin to set it in Policy Center.")
+    if location is None:
+        if "denied" in unavailable_reason:
+            raise BusinessRuleError("LOCATION_BLOCKED", f"Location is blocked in your browser. Allow it to {action}: click the lock icon next to the web address, then allow Location.")
+        raise BusinessRuleError("LOCATION_UNAVAILABLE", f"We couldn't read your location{' (' + unavailable_reason + ')' if unavailable_reason else ''}. Turn on location (Wi-Fi helps on laptops) and try again.")
+    proof, distance, note = check_location(org, location, unavailable_reason)
+    if proof == Proof.FAILED:
+        raise BusinessRuleError("OUTSIDE_OFFICE", f"You're about {_far(distance)} from the office. You can {action} only within {site.radius_m} m of the office, or choose Work from home.")
+    if proof == Proof.INCONCLUSIVE:
+        raise BusinessRuleError("LOCATION_TOO_ROUGH", f"Your location is too rough to confirm (±{round(location.accuracy_m)} m). Turn on Wi-Fi or move near a window, then try again.")
+    return proof, distance, note
+
+
+def _far(m: int | None) -> str:
+    return "?" if m is None else f"{m / 1000:.1f} km" if m >= 1000 else f"{m} m"
 
 
 # ---------- derivation ----------
@@ -262,7 +290,7 @@ def check_in(*, employee: Employee, actor, location: Location | None, unavailabl
         raise ConflictError("ALREADY_CHECKED_IN", "You've already checked in today.")
     if mode == Mode.WFH:
         return _check_in_wfh(employee=employee, actor=actor, at=at, today=today, plan=plan, emergency_reason=emergency_reason, key=key, request=request)
-    proof, distance, note = evaluate_location(office_site(org), location, unavailable_reason)
+    proof, distance, note = require_at_office(org, location, unavailable_reason, "check in")
     day = AttendanceDay.objects.create(
         organization=org, employee=employee, work_date=today, check_in_at=at, proof=proof, proof_note=note,
         review_status=AttendanceDay.Review.NONE if proof == Proof.VERIFIED else AttendanceDay.Review.PENDING,
@@ -343,7 +371,7 @@ def punch(*, employee: Employee, actor, type_: str, key: str | None = None) -> A
 
 @transaction.atomic
 def resume(*, employee: Employee, actor, location: Location | None = None, unavailable_reason: str = "", key: str | None = None) -> AttendanceDay:
-    """End the current break. Office days re-check location on every resume (owner rule, 28 Oct 2026)."""
+    """End the current break. Office days need a confirmed location inside the radius to resume (owner rule, 29 Oct 2026)."""
     employee = _lock(employee)
     at = now()
     day = open_day(employee)
@@ -354,9 +382,11 @@ def resume(*, employee: Employee, actor, location: Location | None = None, unava
     s = derive(day.events.all(), at)
     if s.state not in ("ON_TEA", "ON_LUNCH"):
         raise BusinessRuleError("NOT_ON_BREAK", "You're not on a break.")
+    if day.mode == Mode.WFO:
+        proof, distance, _ = require_at_office(day.organization, location, unavailable_reason, "resume work")
     _event(day, E.END_TEA if s.state == "ON_TEA" else E.END_LUNCH, actor=actor, at=at, key=key)
     if day.mode == Mode.WFO:
-        _location_checkpoint(day, actor=actor, at=at, location=location, unavailable_reason=unavailable_reason, label="After break")
+        _event(day, E.LOCATION_VERIFIED, actor=actor, at=at, proof=proof, distance_m=distance, note="After break", **_loc_fields(location))
     else:
         # A presence check that came due during the break is moved to shortly after the person is back.
         window = wfh_policy(day.organization)["presence_window_seconds"]
@@ -366,17 +396,6 @@ def resume(*, employee: Employee, actor, location: Location | None = None, unava
             c.due_at = at + timedelta(minutes=5 * moved)
             c.save(update_fields=["due_at"])
     return day
-
-
-def _location_checkpoint(day: AttendanceDay, *, actor, at, location, unavailable_reason, label: str) -> None:
-    """Log a location reading for an office day; a reading that isn't verified flags the day for review (time is never changed)."""
-    proof, distance, note = evaluate_location(office_site(day.organization), location, unavailable_reason)
-    _event(day, E.LOCATION_VERIFIED if proof == Proof.VERIFIED else E.VERIFICATION_FAILED, actor=actor, at=at,
-           proof=proof, distance_m=distance, note=f"{label}: {note}" if note else label, **_loc_fields(location))
-    if proof != Proof.VERIFIED and day.proof in (Proof.VERIFIED, Proof.ADMIN_OVERRIDE):
-        day.proof, day.proof_note = Proof.INCONCLUSIVE if proof == Proof.INCONCLUSIVE else Proof.FAILED, f"{label} at {timezone.localtime(at):%H:%M}: {note}"[:200]
-        day.review_status = AttendanceDay.Review.PENDING
-        day.save(update_fields=["proof", "proof_note", "review_status", "updated_at"])
 
 
 @transaction.atomic
@@ -400,7 +419,7 @@ def check_out(*, employee: Employee, actor, reason: str = "", location: Location
     if day.mode == Mode.WFH and len(summary) < 10:
         raise BusinessRuleError("WFH_SUMMARY_REQUIRED", "Add a short summary of what you finished today.", field_errors={"summary": ["Required for work from home."]})
     if day.mode == Mode.WFO:
-        proof, distance, note = evaluate_location(office_site(day.organization), location, unavailable_reason)
+        proof, distance, note = check_location(day.organization, location, unavailable_reason)
         _event(day, E.CHECK_OUT, actor=actor, at=at, key=key, note=reason[:300], proof=proof, distance_m=distance, **_loc_fields(location))
         if proof != Proof.VERIFIED and day.proof in (Proof.VERIFIED, Proof.ADMIN_OVERRIDE):
             day.proof, day.proof_note = Proof.INCONCLUSIVE if proof == Proof.INCONCLUSIVE else Proof.FAILED, f"Check-out at {timezone.localtime(at):%H:%M}: {note}"[:200]
@@ -430,7 +449,7 @@ def reverify(*, employee: Employee, actor, location: Location | None, unavailabl
     day = open_day(employee)
     if day is None:
         raise ConflictError("NOT_CHECKED_IN", "You're not checked in.")
-    proof, distance, note = evaluate_location(office_site(day.organization), location, unavailable_reason)
+    proof, distance, note = check_location(day.organization, location, unavailable_reason)
     _event(day, E.LOCATION_VERIFIED if proof == Proof.VERIFIED else E.VERIFICATION_FAILED, actor=actor, at=now(),
            proof=proof, distance_m=distance, note=note, **_loc_fields(location))
     if proof != Proof.VERIFIED and day.proof == Proof.VERIFIED:

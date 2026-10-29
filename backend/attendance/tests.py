@@ -40,9 +40,14 @@ class AttendanceBase(Fixture):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.c = self.as_user(self.emp)
+        self.site = OfficeSite.objects.create(organization=self.org, name="HQ", latitude=Decimal(str(OFFICE[0])), longitude=Decimal(str(OFFICE[1])), radius_m=50)
 
     def post(self, path, body=None, client=None, **headers):
-        return (client or self.c).post(f"/api/v1/attendance/{path}", body or {}, format="json", **headers)
+        body = dict(body or {})
+        # Office punches need a location; tests that aren't about location punch from the desk.
+        if path in ("check-in", "break/resume", "check-out") and body.get("mode") != "WFH" and "location" not in body and "location_error" not in body:
+            body.update(AT_DESK)
+        return (client or self.c).post(f"/api/v1/attendance/{path}", body, format="json", **headers)
 
     def check_in(self, **body):
         return self.post("check-in", body)
@@ -54,7 +59,8 @@ class AttendanceBase(Fixture):
 
     @contextmanager
     def office(self, radius=50):
-        OfficeSite.objects.create(organization=self.org, name="HQ", latitude=Decimal(str(OFFICE[0])), longitude=Decimal(str(OFFICE[1])), radius_m=radius)
+        self.site.radius_m = radius
+        self.site.save()
         yield
 
 
@@ -166,7 +172,9 @@ class GeofenceUnitTests(SimpleTestCase):
 
     def test_outcomes(self):
         self.assertEqual(svc.evaluate_location(self.site, self.at(10, 15))[0], Proof.VERIFIED)
-        self.assertEqual(svc.evaluate_location(self.site, self.at(40, 30))[0], Proof.INCONCLUSIVE)  # 40+30 > 50, 40-30 < 50
+        self.assertEqual(svc.evaluate_location(self.site, self.at(40, 90))[0], Proof.VERIFIED)  # centre inside, accuracy within ±100 m
+        self.assertEqual(svc.evaluate_location(self.site, self.at(40, 150))[0], Proof.INCONCLUSIVE)  # too rough
+        self.assertEqual(svc.evaluate_location(self.site, self.at(60, 30))[0], Proof.INCONCLUSIVE)  # centre outside, 60-30 < 50
         self.assertEqual(svc.evaluate_location(self.site, self.at(500, 20))[0], Proof.FAILED)
         self.assertEqual(svc.evaluate_location(self.site, None, "permission denied")[0], Proof.INCONCLUSIVE)
         self.assertEqual(svc.evaluate_location(OfficeSite(radius_m=50), self.at(0, 5))[0], Proof.INCONCLUSIVE)
@@ -179,28 +187,42 @@ class GeofenceApiTests(AttendanceBase):
         self.assertEqual((r.data["day"]["proof"], r.data["day"]["review_status"]), ("VERIFIED", "NONE"))
         self.assertNotIn("latitude", str(r.data))  # coordinates never echoed to the employee
 
-    def test_denied_location_still_checks_in_but_needs_review(self):
-        with self.office():
-            r = self.check_in(location_error="permission denied")
-        self.assertEqual(r.status_code, 201)
-        self.assertEqual(r.data["day"]["proof"], "INCONCLUSIVE")
-        items = self.as_user(self.admin).get("/api/v1/admin/attendance/exceptions").data["items"]
-        self.assertEqual([i["kind"] for i in items], ["GEO_INCONCLUSIVE"])
+    def assert_refused(self, code, **body):
+        r = self.check_in(**body)
+        self.assertEqual((r.status_code, r.data["code"]), (422, code), r.data)
+        self.assertFalse(AttendanceDay.objects.exists())
+        return r
+
+    def test_check_in_is_refused_without_a_confirmed_office_location(self):
+        self.assert_refused("LOCATION_BLOCKED", location_error="permission denied")
+        self.assert_refused("LOCATION_UNAVAILABLE", location_error="timed out")
+        r = self.assert_refused("OUTSIDE_OFFICE", location={"latitude": 17.50, "longitude": 78.38, "accuracy_m": 10})
+        self.assertIn("6.7 km", r.data["message"])
+        self.assert_refused("OUTSIDE_OFFICE", location={"latitude": OFFICE[0] + 120 / 111_195, "longitude": OFFICE[1], "accuracy_m": 15})
+        self.assert_refused("LOCATION_TOO_ROUGH", location={"latitude": OFFICE[0], "longitude": OFFICE[1], "accuracy_m": 400})
+        self.assert_refused("LOCATION_TOO_ROUGH", location={"latitude": OFFICE[0] + 60 / 111_195, "longitude": OFFICE[1], "accuracy_m": 30})
+        self.assertEqual(self.check_in(location={"latitude": OFFICE[0] + 40 / 111_195, "longitude": OFFICE[1], "accuracy_m": 80}).status_code, 201)
+
+    def test_check_in_is_refused_until_the_office_location_is_set(self):
+        self.site.delete()
+        self.assert_refused("OFFICE_NOT_SET")
 
     def test_admin_accepts_proof_after_manual_check(self):
-        with self.office():
-            day_id = self.check_in(location={"latitude": 17.50, "longitude": 78.38, "accuracy_m": 10}).data["day"]["id"]
-        self.assertEqual(AttendanceDay.objects.get().proof, "FAILED")
+        day_id = self.check_in().data["day"]["id"]
+        self.clock.to(19, 0)
+        self.post("check-out", {"location": {"latitude": 17.50, "longitude": 78.38, "accuracy_m": 10}})
+        self.assertEqual(AttendanceDay.objects.get().proof, "FAILED")  # check-out is never blocked, only flagged
         r = self.as_user(self.admin).post(f"/api/v1/admin/attendance/days/{day_id}/review", {"action": "ACCEPT_PROOF", "note": "Seen at desk"}, format="json")
         self.assertEqual(r.status_code, 200)
         self.assertEqual(AttendanceDay.objects.get().proof, "ADMIN_OVERRIDE")
         self.assertEqual(self.as_user(self.admin).get("/api/v1/admin/attendance/exceptions").data["items"], [])
 
     def test_accepting_location_keeps_early_checkout_review(self):
-        day_id = self.check_in(location_error="permission denied").data["day"]["id"]
+        day_id = self.check_in().data["day"]["id"]
         self.clock.to(15, 0)
-        self.post("check-out", {"reason": "Left early"})
+        self.post("check-out", {"reason": "Left early", "location_error": "permission denied"})
         admin = self.as_user(self.admin)
+        self.assertEqual(sorted(i["kind"] for i in admin.get("/api/v1/admin/attendance/exceptions").data["items"]), ["GEO_INCONCLUSIVE", "SHORTFALL"])
         admin.post(f"/api/v1/admin/attendance/days/{day_id}/review", {"action": "ACCEPT_PROOF", "note": "Seen at desk"}, format="json")
         kinds = [i["kind"] for i in admin.get("/api/v1/admin/attendance/exceptions").data["items"]]
         self.assertEqual(kinds, ["SHORTFALL"])

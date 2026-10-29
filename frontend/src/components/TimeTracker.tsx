@@ -56,6 +56,7 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const [locating, setLocating] = useState(false)
   const [checkInOpen, setCheckInOpen] = useState(false)
   const [summary, setSummary] = useState('')
+  const [blocked, setBlocked] = useState<{ action: 'checkin' | 'resume'; code: string; message: string } | null>(null)
   // Reading the location can take a few seconds (see readLocation); keep the buttons locked and say so meanwhile.
   const locate = async () => { setLocating(true); try { return await readLocation() } finally { setLocating(false) } }
 
@@ -131,18 +132,20 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   const wfh = data.day?.mode === 'WFH'
   const stateLabel = state === 'WORKING' ? (wfh ? 'Working from home' : 'Working from office') : meta.label
 
-  // Office check-in asks the browser for location straight away; the policy was accepted when the account was set up.
+  // Office check-in and resume need a confirmed location inside the office radius (owner rule, 29 Oct 2026).
+  // The server refuses anything else; show why and let the person try again (or switch to work from home).
+  const LOCATION_CODES = ['OFFICE_NOT_SET', 'LOCATION_BLOCKED', 'LOCATION_UNAVAILABLE', 'OUTSIDE_OFFICE', 'LOCATION_TOO_ROUGH']
+  const refused = (e: unknown, action: 'checkin' | 'resume') => {
+    if (e instanceof ApiError && LOCATION_CODES.includes(e.code)) setBlocked({ action, code: e.code, message: e.message })
+    else fail(e)
+  }
   const doCheckIn = async () => {
+    setBlocked(null)
     const loc = await locate()
     try {
-      const d = await att.checkIn({ ...loc, mode: 'WFO' })
-      const p = d.day?.proof
-      toast(p === 'VERIFIED'
-        ? { tone: 'success', title: 'Checked in', body: 'Location verified within the office radius.' }
-        : loc.location_error === 'permission denied'
-          ? { tone: 'info', title: 'Checked in · location is blocked', body: 'Your time counts. To turn location on, click the lock icon next to the web address and allow Location.' }
-          : { tone: 'info', title: 'Checked in · location not confirmed', body: 'Your time counts. The Super Admin will verify your location.' })
-    } catch (e) { fail(e) }
+      await att.checkIn({ ...loc, mode: 'WFO' })
+      toast({ tone: 'success', title: 'Checked in', body: 'You’re at the office. Have a great day!' })
+    } catch (e) { refused(e, 'checkin') }
   }
   const startCheckIn = () => setCheckInOpen(true)
   const chooseOffice = () => { setCheckInOpen(false); doCheckIn() }
@@ -157,8 +160,10 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
   // Office days check location on every resume (owner rule); home days don't use location.
   const resumeWork = async () => {
     const elapsed = live.breakElapsed
+    setBlocked(null)
     const loc = wfh ? {} : await locate()
-    act(() => att.resume(loc), 'Back to work', `Break lasted ${mmss(elapsed)}.`)
+    try { await att.resume(loc); toast({ tone: 'success', title: 'Back to work', body: `Break lasted ${mmss(elapsed)}.` }) }
+    catch (e) { refused(e, 'resume') }
   }
   const needReason = short || stale
   const tryCheckout = async () => {
@@ -300,6 +305,26 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
         <label className="label" htmlFor="sr">Reason</label>
         <textarea id="sr" className="input h-24 py-2 resize-none" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Doctor’s appointment at 5 PM" />
         </>}
+      </Modal>
+
+      <Modal open={!!blocked} onClose={() => setBlocked(null)} title={blocked?.action === 'resume' ? 'Can’t resume work yet' : 'Can’t check in yet'}
+        footer={<>
+          {blocked?.action === 'checkin' && blocked.code !== 'OFFICE_NOT_SET' && <button className="btn-ghost" onClick={() => { setBlocked(null); setCheckInOpen(true) }}><House size={16} /> Work from home instead</button>}
+          {blocked?.code === 'OFFICE_NOT_SET'
+            ? <button className="btn-primary" onClick={() => setBlocked(null)}>OK</button>
+            : <button className="btn-primary" disabled={locating || busy} onClick={() => (blocked?.action === 'resume' ? resumeWork() : doCheckIn())}>
+                <RefreshCw size={16} className={clsx(locating && 'animate-spin')} /> {locating ? 'Checking location…' : 'Try again'}
+              </button>}
+        </>}>
+        <div className="flex gap-3 text-[13.5px] text-ink-600">
+          <span className="size-10 rounded-xl bg-rose-50 text-rose-600 grid place-items-center shrink-0"><MapPinOff size={19} /></span>
+          <div className="space-y-2">
+            <p className="text-ink-800 font-medium">{blocked?.message}</p>
+            <p className="text-[12.5px] text-ink-500">{blocked?.action === 'resume'
+              ? 'Your break keeps running until you’re back inside the office.'
+              : 'Office attendance is recorded only from inside the office.'}</p>
+          </div>
+        </div>
       </Modal>
 
       <CheckInChoice open={checkInOpen} onClose={() => setCheckInOpen(false)} wfhInfo={data.wfh} busy={busy || locating} onOffice={chooseOffice} onHome={checkInHome} />

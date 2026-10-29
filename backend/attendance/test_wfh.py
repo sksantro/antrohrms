@@ -145,18 +145,18 @@ class PresenceCheckTests(WfhBase):
 
 
 class OfficeCheckpointTests(WfhBase):
-    def test_resume_from_outside_flags_the_day(self):
-        with self.office():
-            self.check_in(**AT_DESK)
+    def test_resume_from_outside_is_refused_and_the_break_continues(self):
+        self.check_in()
         self.clock.add(60)
         self.post("break/start", {"kind": "TEA"})
         self.clock.add(12)
         r = self.post("break/resume", AWAY)
-        self.assertEqual(r.status_code, 200, r.data)
-        day = AttendanceDay.objects.get()
-        self.assertEqual((day.proof, day.review_status), (Proof.FAILED, "PENDING_REVIEW"))
-        self.assertTrue(day.proof_note.startswith("After break"))
-        self.assertEqual(r.data["state"], "WORKING")  # time is never blocked
+        self.assertEqual(r.data["code"], "OUTSIDE_OFFICE")
+        self.assertEqual(self.post("break/resume", {"location_error": "permission denied"}).data["code"], "LOCATION_BLOCKED")
+        self.assertEqual(self.c.get("/api/v1/attendance/today").data["state"], "ON_TEA")  # still on break
+        self.clock.add(3)
+        self.assertEqual(self.post("break/resume", AT_DESK).data["state"], "WORKING")
+        self.assertEqual(self.c.get("/api/v1/attendance/today").data["tea_seconds"], 15 * 60)  # time away counts as break
 
     def test_resume_inside_keeps_the_day_verified(self):
         with self.office():
