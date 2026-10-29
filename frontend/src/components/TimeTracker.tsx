@@ -281,7 +281,7 @@ export default function TimeTracker({ att }: { att: TodayHook; compact?: boolean
           <button className="btn-primary" onClick={() => { giveGeoConsent(); doCheckIn(true) }}><MapPin size={16} /> Allow & check in</button>
         </>}>
         <div className="space-y-3 text-[13.5px] text-ink-600">
-          <p>Antro HRMS checks that you’re within the office radius <b>only when you check in, check out, and every 15 minutes while this page is open</b>. It never tracks you in the background.</p>
+          <p>Antro HRMS checks that you’re within the office radius <b>only when you check in, come back from a break, and check out from the office</b>. Work-from-home days never use your location. It never tracks you in the background.</p>
           <p>Your browser will ask for permission next. If you skip it or it fails, you can still check in. The Super Admin will just verify it manually.</p>
           <p className="text-[12px] text-ink-400">Only the Super Admin can see location readings. They’re kept for 30 days.</p>
         </div>

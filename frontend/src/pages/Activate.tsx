@@ -116,7 +116,7 @@ export default function Activate() {
               <span className={clsx('mt-0.5 size-5 shrink-0 rounded-md grid place-items-center ring-1 transition peer-focus-visible:ring-2 peer-focus-visible:ring-brand-400',
                 accept ? 'bg-brand-600 ring-brand-600 text-white' : 'bg-white ring-ink-300 text-transparent')}><Check size={13} strokeWidth={3} /></span>
               <span className="text-[13px] text-ink-600 leading-relaxed">
-                I’ve read the privacy and attendance policy. My location is checked <b className="text-ink-800">only</b> when I check in, check out, and every 15 minutes while the attendance page is open.
+                I’ve read the privacy and attendance policy. My location is checked <b className="text-ink-800">only</b> when I check in, come back from a break, and check out on office days, never on work-from-home days.
               </span>
             </label>
           </div>
