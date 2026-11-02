@@ -16,8 +16,9 @@ const STATUS: Record<EmployeeDTO['status'], { label: string; tone: Tone }> = {
   EXITED: { label: 'Exited', tone: 'gray' },
   INACTIVE: { label: 'Inactive', tone: 'gray' },
 }
-const ROLE_NAMES: Record<ServerRole, string> = {
-  SUPER_ADMIN: 'Super Admin', HR_OPERATIONS: 'HR Operations', REPORTING_MANAGER: 'Reporting Manager', INTERVIEWER: 'Interviewer', EMPLOYEE: 'Employee',
+// The four roles in use (Access Management); Interviewer returns with Recruitment.
+const ROLE_NAMES: Partial<Record<ServerRole, string>> = {
+  SUPER_ADMIN: 'Super Admin', HR_OPERATIONS: 'HR', REPORTING_MANAGER: 'Reporting Manager (RM)', EMPLOYEE: 'Employee',
 }
 const hueOf = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 0)
 
@@ -116,7 +117,7 @@ function ProfileDrawer({ emp, isAdmin, onClose, onChanged, onInvite }: { emp: Em
   const saveRoles = async () => {
     setBusy(true)
     try {
-      const r = await api.setRoles(emp.id, roles)
+      const r = await api.setRoles(emp.id, roles.filter((r) => r in ROLE_NAMES))
       onChanged({ ...emp, roles: r.roles })
       toast({ tone: 'success', title: 'Roles updated', body: 'Change recorded in the audit trail.' })
     } catch (e) {

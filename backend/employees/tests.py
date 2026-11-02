@@ -115,8 +115,8 @@ class UpdateAndRoleTests(Fixture):
     def test_only_admin_changes_roles(self):
         url = f"/api/v1/admin/employees/{self.emp.employee.pk}/roles"
         self.assertEqual(self.as_user(self.hr).put(url, {"roles": ["HR_OPERATIONS"]}, format="json").status_code, 403)
-        r = self.as_user(self.admin).put(url, {"roles": ["INTERVIEWER"]}, format="json")
-        self.assertEqual(r.data["roles"], ["EMPLOYEE", "INTERVIEWER"])
+        r = self.as_user(self.admin).put(url, {"roles": ["HR_OPERATIONS"]}, format="json")
+        self.assertEqual(sorted(r.data["roles"]), ["EMPLOYEE", "HR_OPERATIONS"])
 
     def test_admin_cannot_remove_own_admin_role(self):
         r = self.as_user(self.admin).put(f"/api/v1/admin/employees/{self.admin.employee.pk}/roles", {"roles": []}, format="json")

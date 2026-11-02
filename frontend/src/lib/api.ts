@@ -193,6 +193,13 @@ export interface PayrollRunDTO {
   payslips?: PayslipDTO[]; totals?: { gross: string; deductions: string; net: string; count: number }
 }
 
+export interface AccessDTO {
+  roles: { role: ServerRole; name: string }[]
+  matrix: { capability: string; access: Record<string, string> }[]
+  people: { id: string; display_name: string; designation: string; employee_code: string | null; roles: { role: ServerRole; source: 'MANUAL' | 'DESIGNATION' | 'REPORTING_LINE' }[] }[]
+  designations: { designation: string; roles: ServerRole[]; people: number }[]
+}
+
 const qs = (p: Record<string, string | undefined>) => {
   const s = new URLSearchParams(Object.entries(p).filter(([, v]) => v) as [string, string][]).toString()
   return s ? '?' + s : ''
@@ -260,4 +267,6 @@ export const api = {
   payrollAction: (id: string, action: 'approve' | 'paid') => request<PayrollRunDTO>('POST', `/admin/payroll/runs/${id}/${action}`),
   adjustPayslip: (id: string, body: { unpaid_days: string; adjustments: NonNullable<PayslipDTO['adjustments']> }) => request<PayslipDTO>('PATCH', `/admin/payroll/payslips/${id}`, body),
   myPayslips: () => request<{ payslips: PayslipDTO[] }>('GET', '/payslips/me'),
+  access: () => request<AccessDTO>('GET', '/admin/access'),
+  setDesignationRoles: (designation: string, roles: ServerRole[]) => request<{ people_updated: number }>('PUT', '/admin/access/designation-rules', { designation, roles }),
 }

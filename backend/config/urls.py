@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 
 from accounts import views as auth
 from common import views as common
-from employees.views import DepartmentViewSet, EmployeeImportView, EmployeeRolesView, EmployeeViewSet
+from employees.views import AccessView, DepartmentViewSet, DesignationRuleView, EmployeeImportView, EmployeeRolesView, EmployeeViewSet
 from payroll import views as payroll
 
 router = DefaultRouter(trailing_slash=False)
@@ -21,6 +21,8 @@ api = [
     path("auth/change-password", auth.ChangePasswordView.as_view()),
     path("admin/employees/import", EmployeeImportView.as_view()),
     path("admin/employees/<uuid:pk>/roles", EmployeeRolesView.as_view()),
+    path("admin/access", AccessView.as_view()),
+    path("admin/access/designation-rules", DesignationRuleView.as_view()),
     path("admin/compensation/<uuid:employee_id>", payroll.CompensationView.as_view()),
     path("admin/payroll/runs", payroll.PayrollRunsView.as_view()),
     path("admin/payroll/runs/<uuid:pk>", payroll.PayrollRunView.as_view()),

@@ -9,6 +9,7 @@ import type { ServerRole } from './lib/api'
 import { AuthProvider, useAuth } from './lib/auth'
 import { StoreProvider, useStore } from './lib/store'
 import Activate from './pages/Activate'
+import AccessAdmin from './pages/admin/AccessAdmin'
 import Audit from './pages/admin/Audit'
 import Approvals from './pages/admin/Approvals'
 import AttendanceAdmin from './pages/admin/AttendanceAdmin'
@@ -112,6 +113,7 @@ function AppRoutes() {
         <Route path="/console/employees" element={<Navigate to="/people" replace />} />
         <Route path="/console/audit" element={<Guard roles={['SUPER_ADMIN']}><Audit /></Guard>} />
         <Route path="/console/attendance" element={<Guard roles={['SUPER_ADMIN']}><AttendanceAdmin /></Guard>} />
+        <Route path="/console/access" element={<Guard roles={['SUPER_ADMIN']}><AccessAdmin /></Guard>} />
         <Route path="/console/leave" element={<Guard roles={['SUPER_ADMIN']}><LeaveAdmin /></Guard>} />
         <Route path="/hr/holidays" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HolidaysAdmin /></Guard>} />
         <Route path="/console/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />

@@ -11,7 +11,8 @@ from accounts.permissions import IsSuperAdmin
 from common.errors import BusinessRuleError
 from common.services import audit
 
-from .models import Department, Employee
+from .access import AUTO_ROLES, MATRIX, ROLES, auto_roles, sync_designation
+from .models import Department, DesignationRole, Employee
 from .serializers import EDITABLE, DepartmentSerializer, EmployeeCreateSerializer, EmployeeSelfSerializer, EmployeeSerializer, EmployeeUpdateSerializer
 from .services import create_employee, send_invite
 
@@ -139,7 +140,7 @@ class EmployeeViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.C
 
 
 class RoleSerializer(serializers.Serializer):
-    roles = serializers.ListField(child=serializers.ChoiceField(choices=Role.choices))
+    roles = serializers.ListField(child=serializers.ChoiceField(choices=[(r, Role(r).label) for r in ROLES]))
 
 
 class EmployeeRolesView(APIView):
@@ -153,13 +154,16 @@ class EmployeeRolesView(APIView):
             raise BusinessRuleError("NOT_FOUND", "Employee not found.")
         s = RoleSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        new = set(s.validated_data["roles"]) | {Role.EMPLOYEE}
+        auto = auto_roles(emp)  # designation / reporting-line roles stay while their reason holds
+        new = set(s.validated_data["roles"]) | {Role.EMPLOYEE} | set(auto)
         if emp.user_id == request.user.id and Role.SUPER_ADMIN not in new:
             raise BusinessRuleError("SELF_LOCKOUT", "You can't remove your own Super Admin role.")
         old = set(emp.user.role_set)
-        RoleAssignment.objects.filter(user=emp.user).exclude(role__in=new).delete()
+        # Roles outside today's four (e.g. Interviewer) are left as they are.
+        RoleAssignment.objects.filter(user=emp.user, role__in=ROLES).exclude(role__in=new).delete()
         for r in new - old:
-            RoleAssignment.objects.create(user=emp.user, role=r, granted_by=request.user)
+            RoleAssignment.objects.create(user=emp.user, role=r, granted_by=request.user, source=auto.get(r, "MANUAL"))
+        new = set(RoleAssignment.objects.filter(user=emp.user).values_list("role", flat=True))
         audit(actor=request.user, action="ROLES_CHANGED", entity=emp.user, before={"roles": sorted(old)}, after={"roles": sorted(new)}, request=request)
         return Response({"roles": sorted(new)})
 
@@ -187,3 +191,49 @@ class EmployeeImportView(APIView):
         except ValueError as e:
             raise BusinessRuleError("INVALID_SHEET", str(e)) from e
         return Response({**{k: v for k, v in result.items() if k != "rows"}, "rows": [r.as_dict() for r in result["rows"]]})
+
+
+class AccessView(APIView):
+    """Access Management (Super Admin): the four roles, who holds them and why, and designation rules."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        org = request.user.organization
+        people = Employee.objects.filter(organization=org).exclude(status__in=["EXITED", "INACTIVE"]).select_related("user").prefetch_related("user__role_assignments")
+        rows = [{"id": str(e.pk), "display_name": e.display_name, "designation": e.designation, "employee_code": e.employee_code,
+                 "roles": [{"role": ra.role, "source": ra.source} for ra in e.user.role_assignments.all() if ra.role in ROLES]} for e in people]
+        designations = sorted({e.designation.strip() for e in people if e.designation.strip()}, key=str.lower)
+        rules = {r.designation.lower(): r.roles for r in DesignationRole.objects.filter(organization=org)}
+        return Response({
+            "roles": [{"role": r, "name": {"HR_OPERATIONS": "HR", "REPORTING_MANAGER": "Reporting Manager (RM)"}.get(r, Role(r).label)} for r in ROLES],
+            "matrix": [{"capability": c, "access": dict(zip(ROLES, a))} for c, a in MATRIX],
+            "people": rows,
+            "designations": [{"designation": d, "roles": rules.get(d.lower(), []), "people": sum(1 for e in people if e.designation.strip().lower() == d.lower())} for d in designations],
+        })
+
+
+class DesignationRuleIn(serializers.Serializer):
+    designation = serializers.CharField(max_length=120)
+    roles = serializers.ListField(child=serializers.ChoiceField(choices=sorted(AUTO_ROLES)))
+
+
+class DesignationRuleView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def put(self, request):
+        s = DesignationRuleIn(data=request.data)
+        s.is_valid(raise_exception=True)
+        org, d, roles = request.user.organization, s.validated_data["designation"].strip(), sorted(set(s.validated_data["roles"]))
+        rule = DesignationRole.objects.filter(organization=org, designation__iexact=d).first()
+        before = rule.roles if rule else []
+        if roles:
+            rule = rule or DesignationRole(organization=org, designation=d)
+            rule.roles, rule.updated_by = roles, request.user
+            rule.save()
+        elif rule:
+            rule.delete()
+        n = sync_designation(org, d)
+        audit(actor=request.user, action="DESIGNATION_ROLES_CHANGED", entity=request.user, before={"designation": d, "roles": before},
+              after={"designation": d, "roles": roles, "people_updated": n}, request=request, organization=org)
+        return Response({"designation": d, "roles": roles, "people_updated": n})

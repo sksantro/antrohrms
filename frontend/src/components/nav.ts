@@ -1,4 +1,4 @@
-import {
+import { KeyRound,
   BadgeCheck, Briefcase, CalendarDays, ClipboardCheck, Clock, FileSignature, FileText, Gauge, Inbox, LayoutDashboard,
   Laptop, LogOut, Receipt, ScrollText, Settings2, Sparkles, Star, Sun, UserCircle, UserPlus, Users, Wallet, type LucideIcon,
 } from 'lucide-react'
@@ -48,6 +48,7 @@ const ADMIN: NavSection = {
     { to: '/hr/holidays', label: 'Holidays', icon: Sun },
     { to: '/console/payroll', label: 'Payroll', icon: Wallet },
     { to: '/console/appraisals', label: 'Appraisals', icon: Sparkles, planned: 'P5' },
+    { to: '/console/access', label: 'Access Management', icon: KeyRound },
     { to: '/console/settings', label: 'Policy Center', icon: Settings2 },
     { to: '/console/audit', label: 'Audit Trail', icon: ScrollText },
   ],

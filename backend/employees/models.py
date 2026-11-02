@@ -4,6 +4,7 @@ from datetime import date
 
 from django.conf import settings
 from django.db import models
+from django.db.models.functions import Lower
 
 
 def add_months(d: date, months: int) -> date:
@@ -74,3 +75,18 @@ class Employee(models.Model):
     @property
     def probation_end(self) -> date:
         return add_months(self.start_date, self.probation_months)
+
+
+class DesignationRole(models.Model):
+    """Roles everyone with this designation gets automatically (Access Management). Super Admin is never automatic."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey("common.Organization", on_delete=models.PROTECT)
+    designation = models.CharField(max_length=120)  # matched case-insensitively
+    roles = models.JSONField(default=list)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["designation"]
+        constraints = [models.UniqueConstraint(Lower("designation"), "organization", name="uniq_designation_rule")]

@@ -73,6 +73,8 @@ class RoleAssignment(models.Model):
     role = models.CharField(max_length=30, choices=Role.choices)
     granted_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
     granted_at = models.DateTimeField(auto_now_add=True)
+    # MANUAL: set by the Super Admin. DESIGNATION / REPORTING_LINE: kept in sync automatically (employees.access).
+    source = models.CharField(max_length=16, default="MANUAL")
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["user", "role"], name="uniq_user_role")]

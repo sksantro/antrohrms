@@ -345,6 +345,9 @@ def commit(data: bytes, *, actor, request=None) -> dict:
         if r.manager_id:
             mgr_id = created[r.manager_id].pk if r.manager_id.startswith("row:") else r.manager_id
             Employee.objects.filter(pk=created[f"row:{r.sheet_row}"].pk).update(reporting_manager_id=mgr_id)
+    from .access import sync  # .update() skips signals; give managers their RM role now
+    for e in Employee.objects.filter(organization=org).select_related("user"):
+        sync(e)
     _bump_sequence(org)
     audit(actor=actor, action="EMPLOYEES_BULK_IMPORTED", entity=actor, after=result["summary"], request=request, organization=org)
     return {"summary": result["summary"], "invites": invites, "new_departments": result["new_departments"]}
