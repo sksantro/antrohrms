@@ -225,9 +225,10 @@ def summary_payload(day: AttendanceDay | None, at: datetime, org, employee=None)
     today = timezone.localdate(at)
     wfh = wfh_today(employee or day.employee, today) if (employee or day) else None
     if day is None:
+        off = day_off(employee, today) if employee else None
         return {"day": None, "state": "NOT_CHECKED_IN", "server_now": at, "thresholds": t, "events": [],
                 "work_seconds": 0, "presence_seconds": 0, "tea_seconds": 0, "lunch_seconds": 0, "tea_count": 0,
-                "break_started_at": None, "is_workday": is_workday(org, today), "wfh": wfh, "presence": None}
+                "break_started_at": None, "is_workday": is_workday(org, today) and not off, "day_off": off, "wfh": wfh, "presence": None}
     events = list(day.events.all())
     s = derive(events, at)
     return {
@@ -248,6 +249,18 @@ def summary_payload(day: AttendanceDay | None, at: datetime, org, employee=None)
 
 def is_workday(org, d: date) -> bool:
     return WEEKDAYS[d.weekday()] in policy(org, "attendance.workdays", ["MON", "TUE", "WED", "THU", "FRI"])
+
+
+def day_off(employee, d: date) -> str | None:
+    """Why this person isn't expected at work on `d`: a holiday (fixed or their chosen optional) or approved full-day leave."""
+    from leaves.services import employee_holidays, leave_on  # leaves builds on attendance; import lazily
+    name = employee_holidays(employee, d, d).get(d)
+    if name:
+        return f"Today is a holiday ({name})" if d == timezone.localdate() else f"{d:%d %b} is a holiday ({name})"
+    lv = leave_on(employee, d)
+    if lv and not lv.half_day:
+        return f"You're on approved {lv.get_category_display()} {'today' if d == timezone.localdate() else f'on {d:%d %b}'}"
+    return None
 
 
 # ---------- employee actions ----------
@@ -283,6 +296,9 @@ def check_in(*, employee: Employee, actor, location: Location | None, unavailabl
     org = employee.organization
     if not is_workday(org, today):
         raise BusinessRuleError("NOT_A_WORKDAY", "Office attendance is Monday to Friday. Weekend and holiday work arrives with Holiday Work (phase P2).")
+    off = day_off(employee, today)
+    if off:
+        raise BusinessRuleError("DAY_OFF", f"{off}, so there's nothing to check in for. Cancel the leave first if you're working.")
     existing = open_day(employee)
     if existing and existing.work_date < today:
         raise ConflictError("PREVIOUS_DAY_OPEN", f"You didn't check out on {existing.work_date:%d %b}. Check out that day first (with a reason), then check in.")
@@ -411,7 +427,9 @@ def check_out(*, employee: Employee, actor, reason: str = "", location: Location
         raise ConflictError("NOT_CHECKED_IN", "You're not checked in.")
     s = derive(day.events.all(), at)
     t = thresholds(day.organization)
-    short = s.work < t["work_seconds"] or s.presence < t["presence_seconds"]
+    from leaves.services import leave_on
+    half = 2 if (lv := leave_on(employee, day.work_date)) and lv.half_day else 1  # a half-day leave halves the day's hours
+    short = s.work < t["work_seconds"] // half or s.presence < t["presence_seconds"] // half
     reason = reason.strip()
     if (short or day.work_date < timezone.localdate(at)) and not reason:
         raise BusinessRuleError("SHORTFALL_REASON_REQUIRED", "Please give a reason for checking out before completing 8h work and 9h presence.")
@@ -495,6 +513,9 @@ def request_wfh(*, employee: Employee, actor, on: date, reason: str, request=Non
         raise BusinessRuleError("WFH_PAST_DATE", "Pick today or a future date.", field_errors={"date": ["Can't be in the past."]})
     if not is_workday(org, on):
         raise BusinessRuleError("NOT_A_WORKDAY", "Work from home is for Monday to Friday.", field_errors={"date": ["Pick a weekday."]})
+    off = day_off(employee, on)
+    if off:
+        raise BusinessRuleError("DAY_OFF", f"{off}.", field_errors={"date": ["Not a working day for you."]})
     if on == today and AttendanceDay.objects.filter(employee=employee, work_date=today).exists():
         raise ConflictError("ALREADY_CHECKED_IN", "You've already checked in today.")
     if WfhRequest.objects.filter(employee=employee, date=on, status__in=[WfhRequest.Status.PENDING, WfhRequest.Status.APPROVED]).exists():

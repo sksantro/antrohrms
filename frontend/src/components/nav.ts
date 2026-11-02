@@ -13,9 +13,9 @@ const SELF: NavSection = {
   items: [
     { to: '/app/home', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/app/attendance', label: 'Attendance', icon: Clock },
-    { to: '/app/leave', label: 'Leave', icon: CalendarDays, sample: 'P2' },
-    { to: '/app/holidays', label: 'Holiday Calendar', icon: Sun, sample: 'P2' },
-    { to: '/app/payslips', label: 'Payslips', icon: Receipt, sample: 'P2' },
+    { to: '/app/leave', label: 'Leave', icon: CalendarDays },
+    { to: '/app/holidays', label: 'Holiday Calendar', icon: Sun },
+    { to: '/app/payslips', label: 'Payslips', icon: Receipt },
     { to: '/app/documents', label: 'Documents', icon: FileText, planned: 'P3' },
     { to: '/app/assets', label: 'Assets', icon: Laptop, sample: 'P4' },
     { to: '/app/appraisal', label: 'Appraisal', icon: Star, planned: 'P5' },
@@ -28,6 +28,7 @@ const HR: NavSection = {
   title: 'HR operations',
   items: [
     { to: '/people', label: 'People', icon: Users },
+    { to: '/hr/holidays', label: 'Holiday Calendar', icon: Sun },
     { to: '/hr/recruitment', label: 'Recruitment', icon: Briefcase, sample: 'P3' },
     { to: '/hr/onboarding', label: 'Onboarding', icon: UserPlus, planned: 'P3' },
     { to: '/hr/letters', label: 'Letter Drafts', icon: FileSignature, planned: 'P3' },
@@ -40,9 +41,11 @@ const ADMIN: NavSection = {
   title: 'Command',
   items: [
     { to: '/console', label: 'Command Center', icon: Gauge },
-    { to: '/console/approvals', label: 'Approval Inbox', icon: Inbox, badge: 'approvals' },
+    { to: '/console/approvals', label: 'Approval Inbox', icon: Inbox },
     { to: '/people', label: 'Employee Directory', icon: Users },
     { to: '/console/attendance', label: 'Attendance', icon: Clock },
+    { to: '/console/leave', label: 'Leave', icon: CalendarDays },
+    { to: '/hr/holidays', label: 'Holidays', icon: Sun },
     { to: '/console/payroll', label: 'Payroll', icon: Wallet },
     { to: '/console/appraisals', label: 'Appraisals', icon: Sparkles, planned: 'P5' },
     { to: '/console/settings', label: 'Policy Center', icon: Settings2 },

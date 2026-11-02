@@ -81,3 +81,10 @@
     linear-gradient(120deg, #18237a 0%, #2338c9 48%, #2f6bff 100%);
 }
 @keyframes wave { 0%, 60%, 100% { transform: rotate(0) } 10%, 30% { transform: rotate(14deg) } 20% { transform: rotate(-8deg) } 40% { transform: rotate(-4deg) } 50% { transform: rotate(10deg) } }
+
+/* Payslip printing: only the slip goes to paper / PDF. */
+@media print {
+  body * { visibility: hidden !important; }
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area { position: absolute; inset: 0 auto auto 0; width: 100%; box-shadow: none !important; border: 0 !important; }
+}

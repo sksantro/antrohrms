@@ -1,158 +1,166 @@
 import clsx from 'clsx'
-import { CalendarDays, CalendarPlus, Info, Paperclip } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { CalendarDays, CalendarPlus, Pencil, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Card, CardHeader, Drawer, EmptyState, PageHeader, Pill, ProgressRing, Segmented, type Tone } from '../components/ui'
-import { HOLIDAYS, LEAVE_META, type LeaveRequest, type LeaveStatus, type LeaveType } from '../lib/data'
-import { fmtDate } from '../lib/format'
-import { useMe, useStore } from '../lib/store'
+import { api, type LeaveCat, type LeaveDTO, type LeaveStatusDTO } from '../lib/api'
+import { fmtDate, istToday } from '../lib/format'
+import { useStore } from '../lib/store'
+import { errMsg, useApi } from '../lib/useApi'
 
-export function leaveBalance(leaves: LeaveRequest[], empId: string) {
-  const out = {} as Record<LeaveType, { used: number; pending: number; available: number }>
-  for (const t of Object.keys(LEAVE_META) as LeaveType[]) {
-    const mine = leaves.filter((l) => l.empId === empId && l.type === t)
-    const used = mine.filter((l) => l.status === 'ADMIN_APPROVED').reduce((s, l) => s + l.days, 0)
-    const pending = mine.filter((l) => l.status === 'SUBMITTED').reduce((s, l) => s + l.days, 0)
-    out[t] = { used, pending, available: LEAVE_META[t].quota - used - pending }
-  }
-  return out
-}
-
-export const LEAVE_STATUS: Record<LeaveStatus, { label: string; tone: Tone }> = {
+export const LEAVE_STATUS: Record<LeaveStatusDTO, { label: string; tone: Tone }> = {
   SUBMITTED: { label: 'Pending approval', tone: 'amber' },
-  ADMIN_APPROVED: { label: 'Approved', tone: 'green' },
-  ADMIN_REJECTED: { label: 'Rejected', tone: 'red' },
+  APPROVED: { label: 'Approved', tone: 'green' },
+  REJECTED: { label: 'Rejected', tone: 'red' },
   NEEDS_CHANGES: { label: 'Needs changes', tone: 'blue' },
   CANCELLED: { label: 'Cancelled', tone: 'gray' },
 }
-
-// Working days between two dates excluding weekends and fixed holidays (preview only — server is authoritative).
-function workingDays(from: string, to: string, half: boolean) {
-  if (!from || !to || to < from) return 0
-  if (half) return 0.5
-  let n = 0
-  const fixed = new Set(HOLIDAYS.filter((h) => h.type === 'FIXED').map((h) => h.date))
-  for (let d = new Date(from + 'T00:00:00Z'); d <= new Date(to + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) {
-    const iso = d.toISOString().slice(0, 10)
-    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6 && !fixed.has(iso)) n++
-  }
-  return n
+export const CAT: Record<LeaveCat, { name: string; color: string; hint: string }> = {
+  CL: { name: 'Casual Leave', color: '#3d5afe', hint: 'Personal work, short notice' },
+  SL: { name: 'Sick Leave', color: '#12b6ff', hint: 'Illness or a doctor’s visit' },
+  EL: { name: 'Earned Leave', color: '#8b3dff', hint: 'Planned vacation' },
 }
+export const range = (l: Pick<LeaveDTO, 'start' | 'end' | 'half_day'>) =>
+  l.start === l.end ? `${fmtDate(l.start, { weekday: 'short', day: 'numeric', month: 'short' })}${l.half_day ? ' · half day' : ''}`
+    : `${fmtDate(l.start, { day: 'numeric', month: 'short' })} – ${fmtDate(l.end, { day: 'numeric', month: 'short' })}`
 
 export default function Leave() {
-  const me = useMe()
-  const { leaves, applyLeave, cancelLeave, toast } = useStore()
-  const bal = leaveBalance(leaves, me.id)
-  const [open, setOpen] = useState(false)
-  const [tab, setTab] = useState<'all' | 'pending' | 'past'>('all')
-  const mine = leaves.filter((l) => l.empId === me.id)
-  const shown = mine.filter((l) => tab === 'all' || (tab === 'pending' ? l.status === 'SUBMITTED' : l.status !== 'SUBMITTED'))
+  const year = Number(istToday().slice(0, 4))
+  const bal = useApi(() => api.leaveBalances(year), [year])
+  const list = useApi(() => api.myLeave(), [])
+  const [tab, setTab] = useState<'all' | 'open' | 'closed'>('all')
+  const [form, setForm] = useState<LeaveDTO | 'new' | null>(null)
+  const { toast } = useStore()
+  const refresh = () => { bal.reload(); list.reload() }
 
-  // form
-  const [type, setType] = useState<LeaveType>('CL')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const [half, setHalf] = useState(false)
-  const [reason, setReason] = useState('')
-  const days = useMemo(() => workingDays(from, half ? from : to, half), [from, to, half])
-  const overlap = mine.some((l) => (l.status === 'SUBMITTED' || l.status === 'ADMIN_APPROVED') && from && l.from <= (half ? from : to) && l.to >= from)
-  const insufficient = days > bal[type].available
-  const valid = from && (half || to) && days > 0 && reason.trim().length >= 3 && !overlap && !insufficient
-  // Tells the person why Submit is still disabled instead of leaving them to guess.
-  const blocker = !from ? 'Pick a date to continue' : !half && !to ? 'Pick an end date' : days === 0 ? 'Those dates are all weekends or holidays'
-    : overlap || insufficient ? null : reason.trim().length < 3 ? 'Add a short reason for the approver' : null
-
-  const submit = () => {
-    applyLeave({ type, from, to: half ? from : to, days, reason })
-    toast({ tone: 'success', title: 'Leave request submitted', body: 'Super Admin has been notified by email.' })
-    setOpen(false); setFrom(''); setTo(''); setReason(''); setHalf(false)
+  const cancel = async (l: LeaveDTO) => {
+    try { await api.cancelLeave(l.id); toast({ tone: 'success', title: 'Leave cancelled', body: l.status === 'APPROVED' ? 'The days are back in your balance.' : undefined }); refresh() }
+    catch (e) { toast({ tone: 'error', title: 'Couldn’t cancel', body: errMsg(e) }) }
   }
+  const rows = (list.data?.requests ?? []).filter((l) => tab === 'all' || (tab === 'open') === ['SUBMITTED', 'NEEDS_CHANGES'].includes(l.status))
 
   return (
     <>
-      <PageHeader eyebrow="Self service" title="My Leave" sample="P2" subtitle="Casual, Sick and Earned leave · approved by Super Admin"
-        actions={<button className="btn-primary" onClick={() => setOpen(true)}><CalendarPlus size={17} /> Apply for leave</button>} />
+      <PageHeader eyebrow={`Leave year ${year}`} title="Leave" subtitle="Casual, Sick and Earned Leave. The Super Admin approves every request."
+        actions={<button className="btn-brand h-11 px-5 rounded-xl" onClick={() => setForm('new')}><CalendarPlus size={17} /> Apply for leave</button>} />
 
-      <div className="grid md:grid-cols-3 gap-5 mb-6">
-        {(Object.keys(LEAVE_META) as LeaveType[]).map((t, i) => (
-          <Card key={t} className="p-5 flex items-center gap-5 animate-fade-up hover:shadow-lift transition-shadow" style={{ animationDelay: `${i * 60}ms` }}>
-            <ProgressRing value={bal[t].available / LEAVE_META[t].quota} size={92} stroke={9} color={LEAVE_META[t].color}>
-              <div><div className="font-display font-bold text-xl">{bal[t].available}</div><div className="text-[10.5px] text-ink-400 -mt-0.5">left</div></div>
-            </ProgressRing>
-            <div className="flex-1">
-              <div className="flex items-center gap-2"><span className="font-display font-bold text-lg">{t}</span><span className="text-ink-500 text-[13px]">{LEAVE_META[t].name}</span></div>
-              <div className="grid grid-cols-3 gap-2 mt-3 text-[12px]">
-                <div><div className="text-ink-400">Quota</div><div className="font-semibold text-ink-800">{LEAVE_META[t].quota}</div></div>
-                <div><div className="text-ink-400">Used</div><div className="font-semibold text-ink-800">{bal[t].used}</div></div>
-                <div><div className="text-ink-400">Pending</div><div className="font-semibold text-amber-600">{bal[t].pending}</div></div>
+      <div className="grid sm:grid-cols-3 gap-4 mb-6">
+        {(['CL', 'SL', 'EL'] as LeaveCat[]).map((c, i) => {
+          const b = bal.data?.balances[c]
+          return (
+            <Card key={c} className="p-5 flex items-center gap-5 animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
+              <ProgressRing value={b && b.granted ? b.available / b.granted : 0} size={82} stroke={8} color={CAT[c].color}>
+                <div className="text-center leading-none"><div className="text-[20px] font-bold text-ink-900">{b ? b.available : '–'}</div><div className="text-[10.5px] text-ink-500 mt-1">left</div></div>
+              </ProgressRing>
+              <div className="min-w-0">
+                <div className="font-bold text-ink-900">{CAT[c].name}</div>
+                <div className="text-[12.5px] text-ink-500 mt-1">{b ? <>{b.granted} granted · {b.used} used{b.pending ? <> · <span className="text-amber-600 font-medium">{b.pending} pending</span></> : null}</> : 'Loading…'}</div>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          )
+        })}
       </div>
+      {bal.data?.on_probation && <p className="text-[12.5px] text-ink-500 -mt-3 mb-5">You’re on probation. You can still request leave as the law allows.</p>}
 
       <Card>
-        <CardHeader title="Requests" subtitle="Your full leave history" action={
-          <Segmented value={tab} onChange={setTab} options={[{ value: 'all', label: 'All' }, { value: 'pending', label: 'Pending' }, { value: 'past', label: 'Reviewed' }]} />} />
-        {shown.length === 0 ? (
-          <EmptyState icon={CalendarDays} title="Nothing here yet" body="When you apply for leave it will show up here with its approval status." action={<button className="btn-primary" onClick={() => setOpen(true)}>Apply for leave</button>} />
-        ) : (
-          <div className="px-3 pb-3 overflow-x-auto">
-            <table className="w-full min-w-[640px]">
-              <thead><tr><th className="table-th">Type</th><th className="table-th">Dates</th><th className="table-th">Days</th><th className="table-th">Reason</th><th className="table-th">Status</th><th className="table-th" /></tr></thead>
-              <tbody>
-                {shown.map((l) => (
-                  <tr key={l.id} className="hover:bg-ink-50/50">
-                    <td className="table-td"><span className="inline-flex items-center gap-2 font-semibold text-ink-900"><span className="size-2.5 rounded-full" style={{ background: LEAVE_META[l.type].color }} />{l.type}</span></td>
-                    <td className="table-td">{fmtDate(l.from)}{l.to !== l.from && <> – {fmtDate(l.to)}</>}</td>
-                    <td className="table-td tabular-nums">{l.days}</td>
-                    <td className="table-td max-w-[260px] truncate">{l.reason}</td>
-                    <td className="table-td"><Pill tone={LEAVE_STATUS[l.status].tone} dot>{LEAVE_STATUS[l.status].label}</Pill></td>
-                    <td className="table-td text-right">{l.status === 'SUBMITTED' && <button className="btn-ghost btn-sm" onClick={() => { cancelLeave(l.id); toast({ tone: 'info', title: 'Request cancelled' }) }}>Cancel</button>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <CardHeader title="My requests" icon={CalendarDays} action={<Segmented value={tab} onChange={setTab} options={[{ value: 'all', label: 'All' }, { value: 'open', label: 'Open' }, { value: 'closed', label: 'Closed' }]} />} />
+        <div className="px-5 pb-5">
+          {list.error && <p className="text-rose-700 text-sm">{list.error}</p>}
+          {list.data && rows.length === 0 && <EmptyState icon={CalendarDays} title="No leave requests here" body="Apply for leave and it shows up here with its status." />}
+          <ul className="space-y-2.5">
+            {rows.map((l) => (
+              <li key={l.id} className="rounded-2xl ring-1 ring-ink-100 bg-white p-4 flex flex-wrap items-center gap-4">
+                <span className="size-11 rounded-xl grid place-items-center text-white font-bold text-[13px] shrink-0" style={{ background: CAT[l.category].color }}>{l.category}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-ink-900">{range(l)} <span className="text-ink-400 font-normal">· {Number(l.days)} day{Number(l.days) === 1 ? '' : 's'}</span></div>
+                  <div className="text-[12.5px] text-ink-500 truncate">{l.reason}</div>
+                  {l.decision_note && <div className={clsx('text-[12.5px] mt-1', l.status === 'NEEDS_CHANGES' ? 'text-sky-700' : 'text-ink-500')}>Super Admin: “{l.decision_note}”</div>}
+                </div>
+                <Pill tone={LEAVE_STATUS[l.status].tone} dot>{LEAVE_STATUS[l.status].label}</Pill>
+                <div className="flex gap-1">
+                  {l.status === 'NEEDS_CHANGES' && <button className="btn-outline btn-sm" onClick={() => setForm(l)}><Pencil size={13} /> Edit</button>}
+                  {l.cancellable && <button className="btn-ghost btn-sm text-rose-600" onClick={() => cancel(l)}><X size={14} /> Cancel</button>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </Card>
 
-      <Drawer open={open} onClose={() => setOpen(false)} title="Apply for leave" subtitle="Weekends and holidays are excluded automatically"
-        footer={<>
-          {blocker && <span className="mr-auto self-center text-[12.5px] text-ink-400" aria-live="polite">{blocker}</span>}
-          <button className="btn-ghost" onClick={() => setOpen(false)}>Cancel</button><button className="btn-primary" disabled={!valid} onClick={submit}>Submit request</button>
-        </>}>
-        <div className="space-y-5">
-          <div>
-            <div className="label" id="leave-type">Leave type</div>
-            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="leave-type">
-              {(Object.keys(LEAVE_META) as LeaveType[]).map((t) => (
-                <button key={t} role="radio" aria-checked={type === t} title={LEAVE_META[t].name} onClick={() => setType(t)} className={clsx('rounded-xl border p-3 text-left transition', type === t ? 'border-brand-500 bg-brand-50 ring-4 ring-brand-100' : 'border-ink-200 hover:border-ink-300')}>
-                  <div className="font-display font-bold">{t}</div>
-                  <div className="text-[11.5px] text-ink-500">{bal[t].available} available</div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={half} onChange={(e) => setHalf(e.target.checked)} className="size-4 accent-brand-600" />
-            <span className="text-[13.5px] font-medium">Half day</span>
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label" htmlFor="from">{half ? 'Date' : 'From'}</label><input id="from" type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-            {!half && <div><label className="label" htmlFor="to">To</label><input id="to" type="date" className="input" value={to} min={from} onChange={(e) => setTo(e.target.value)} /></div>}
-          </div>
-          <div className={clsx('rounded-2xl p-4 flex items-center justify-between', overlap || insufficient ? 'bg-rose-50 text-rose-700' : 'bg-brand-50/60 text-brand-800')}>
-            <span className="text-[13px] font-medium">{overlap ? 'Overlaps an existing request' : insufficient ? `Only ${bal[type].available} ${type} available` : 'Working days requested'}</span>
-            <span className="font-display font-bold text-2xl">{days}</span>
-          </div>
-          <div>
-            <div className="flex justify-between"><label className="label" htmlFor="reason">Reason</label><span className="text-[12px] text-ink-400 tabular-nums">{reason.length}/300</span></div>
-            <textarea id="reason" maxLength={300} className="input h-24 py-2 resize-none" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="A short note for the approver" />
-          </div>
-          <button disabled title="Attachments upload once leave connects to the server (P2)" className="w-full rounded-xl border-2 border-dashed border-ink-200 p-4 text-ink-400 text-[13px] flex items-center justify-center gap-2 cursor-not-allowed"><Paperclip size={16} /> Attach supporting document · available in P2</button>
-          <p className="text-[12px] text-ink-400 flex gap-2"><Info size={14} className="shrink-0 mt-0.5" /> Leave during probation is allowed as permitted by law. Final validation happens on the server.</p>
-        </div>
-      </Drawer>
+      {form && <LeaveForm edit={form === 'new' ? null : form} balances={bal.data?.balances} onClose={() => setForm(null)} onDone={() => { setForm(null); refresh() }} />}
     </>
+  )
+}
+
+function LeaveForm({ edit, balances, onClose, onDone }: { edit: LeaveDTO | null; balances?: Record<LeaveCat, { available: number }>; onClose: () => void; onDone: () => void }) {
+  const { toast } = useStore()
+  const [cat, setCat] = useState<LeaveCat>(edit?.category ?? 'CL')
+  const [start, setStart] = useState(edit?.start ?? '')
+  const [end, setEnd] = useState(edit?.end ?? '')
+  const [half, setHalf] = useState(edit?.half_day ?? false)
+  const [reason, setReason] = useState(edit?.reason ?? '')
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [preview, setPreview] = useState<{ days: number; holidays: { date: string; name: string }[] } | null>(null)
+  const to = half ? start : end
+  useEffect(() => {
+    if (!start || !to || to < start) { setPreview(null); return }
+    let live = true
+    api.leavePreview(start, to).then((p) => live && setPreview(p)).catch(() => live && setPreview(null))
+    return () => { live = false }
+  }, [start, to])
+  const days = half ? (preview?.days ? 0.5 : 0) : preview?.days ?? 0
+  const avail = balances?.[cat].available ?? 0
+  const extra = edit && edit.category === cat ? Number(edit.days) : 0 // its own hold comes back when editing
+  const short = days > avail + extra
+  const blocker = !start ? 'Pick a start date' : !half && !end ? 'Pick an end date' : to < start ? 'The end date is before the start date'
+    : preview && preview.days === 0 ? 'Those dates are all weekends or holidays' : short ? `Only ${avail + extra} ${cat} day(s) available` : reason.trim().length < 3 ? 'Add a short reason' : null
+
+  const submit = async () => {
+    setBusy(true); setErr(null)
+    const body = { category: cat, start, end: to, half_day: half, reason }
+    try {
+      await (edit ? api.resubmitLeave(edit.id, body) : api.applyLeave(body))
+      toast({ tone: 'success', title: edit ? 'Request sent again' : 'Leave request sent', body: 'The Super Admin has been notified by email.' })
+      onDone()
+    } catch (e) { setErr(errMsg(e)) } finally { setBusy(false) }
+  }
+
+  return (
+    <Drawer open onClose={onClose} title={edit ? 'Edit leave request' : 'Apply for leave'} subtitle="Weekends and holidays are not counted"
+      footer={<div className="w-full flex items-center justify-between gap-3">
+        <span className="text-[12.5px] text-ink-500">{blocker ?? `${days} working day${days === 1 ? '' : 's'} from ${CAT[cat].name}`}</span>
+        <button className="btn-brand h-10 px-5 rounded-xl" disabled={!!blocker || busy} onClick={submit}>{edit ? 'Send again' : 'Send request'}</button>
+      </div>}>
+      <div className="space-y-5">
+        {err && <div role="alert" className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2.5 text-[13px]">{err}</div>}
+        {edit?.decision_note && <div className="rounded-xl bg-sky-50 text-sky-800 px-3 py-2.5 text-[13px]"><b>Super Admin asked:</b> {edit.decision_note}</div>}
+        <div>
+          <div className="label">Type of leave</div>
+          <div className="grid grid-cols-3 gap-2">
+            {(['CL', 'SL', 'EL'] as LeaveCat[]).map((c) => (
+              <button key={c} onClick={() => setCat(c)} className={clsx('rounded-xl p-3 text-left ring-1 transition', cat === c ? 'ring-brand-400 bg-brand-50/70' : 'ring-ink-200 hover:ring-brand-300')}>
+                <div className="font-semibold text-[13.5px] text-ink-900">{CAT[c].name}</div>
+                <div className="text-[11.5px] text-ink-500 mt-0.5">{balances ? `${balances[c].available} left` : CAT[c].hint}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-[13.5px] text-ink-700 cursor-pointer select-none">
+          <input type="checkbox" className="size-4 accent-brand-600" checked={half} onChange={(e) => setHalf(e.target.checked)} /> Half day (one date)
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="label" htmlFor="lv-start">{half ? 'Date' : 'From'}</label><input id="lv-start" type="date" className="input" value={start} onChange={(e) => { setStart(e.target.value); if (!end || end < e.target.value) setEnd(e.target.value) }} /></div>
+          {!half && <div><label className="label" htmlFor="lv-end">To</label><input id="lv-end" type="date" className="input" min={start} value={end} onChange={(e) => setEnd(e.target.value)} /></div>}
+        </div>
+        {preview && preview.holidays.length > 0 && (
+          <div className="rounded-xl bg-ink-50 px-3 py-2.5 text-[12.5px] text-ink-600">Not counted: {preview.holidays.map((h) => `${h.name} (${fmtDate(h.date, { day: 'numeric', month: 'short' })})`).join(', ')}</div>
+        )}
+        <div>
+          <label className="label" htmlFor="lv-reason">Reason</label>
+          <textarea id="lv-reason" className="input h-24 py-2 resize-none" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Family function in my hometown" />
+        </div>
+        <p className="text-[12px] text-ink-400">Past dates (up to 30 days back) are allowed, for example sick leave after you’re back. The Super Admin decides those with a note.</p>
+      </div>
+    </Drawer>
   )
 }

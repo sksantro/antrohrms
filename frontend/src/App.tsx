@@ -14,6 +14,8 @@ import Approvals from './pages/admin/Approvals'
 import AttendanceAdmin from './pages/admin/AttendanceAdmin'
 import CommandCenter from './pages/admin/CommandCenter'
 import Directory from './pages/admin/Directory'
+import HolidaysAdmin from './pages/admin/HolidaysAdmin'
+import LeaveAdmin from './pages/admin/LeaveAdmin'
 import Payroll from './pages/admin/Payroll'
 import Policy from './pages/admin/Policy'
 import { HrAssets, MyAssets } from './pages/Assets'
@@ -97,9 +99,9 @@ function AppRoutes() {
       <Route element={<Shell />}>
         <Route path="/app/home" element={<Home />} />
         <Route path="/app/attendance" element={<Attendance />} />
-        <Route path="/app/leave" element={<Preview><Leave /></Preview>} />
-        <Route path="/app/holidays" element={<Preview><Holidays /></Preview>} />
-        <Route path="/app/payslips" element={<Preview><Payslips /></Preview>} />
+        <Route path="/app/leave" element={<Leave />} />
+        <Route path="/app/holidays" element={<Holidays />} />
+        <Route path="/app/payslips" element={<Payslips />} />
         <Route path="/app/assets" element={<Preview><MyAssets /></Preview>} />
         <Route path="/app/profile" element={<Profile />} />
         <Route path="/people" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Directory /></Guard>} />
@@ -110,6 +112,8 @@ function AppRoutes() {
         <Route path="/console/employees" element={<Navigate to="/people" replace />} />
         <Route path="/console/audit" element={<Guard roles={['SUPER_ADMIN']}><Audit /></Guard>} />
         <Route path="/console/attendance" element={<Guard roles={['SUPER_ADMIN']}><AttendanceAdmin /></Guard>} />
+        <Route path="/console/leave" element={<Guard roles={['SUPER_ADMIN']}><LeaveAdmin /></Guard>} />
+        <Route path="/hr/holidays" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HolidaysAdmin /></Guard>} />
         <Route path="/console/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />
         <Route path="/console/settings" element={<Guard roles={['SUPER_ADMIN']}><Policy /></Guard>} />
         {['/app/documents', '/app/appraisal', '/app/resignation', '/hr/onboarding', '/hr/letters', '/hr/exits', '/console/appraisals', '/manager/reviews'].map((p) => (

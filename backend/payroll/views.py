@@ -9,7 +9,8 @@ from common.errors import BusinessRuleError, ConflictError
 from common.services import audit
 from employees.models import Employee
 
-from .models import SalaryVersion
+from . import services as pay
+from .models import PayrollRun, Payslip, SalaryVersion
 
 
 class ComponentSerializer(serializers.Serializer):
@@ -64,3 +65,120 @@ class CompensationView(APIView):
         # Audit records the change but not the amounts, so salary never appears in non-admin logs.
         audit(actor=request.user, action="SALARY_VERSION_CREATED", entity=sv, after={"employee_id": str(emp.pk), "effective_from": str(sv.effective_from)}, request=request, organization=emp.organization)
         return Response(SalaryVersionSerializer(sv).data, status=201)
+
+
+# ---------- monthly payroll (Super Admin) and payslips (own) ----------
+
+
+def _run(r: PayrollRun, slips=False) -> dict:
+    out = {"id": str(r.id), "year": r.year, "month": r.month, "status": r.status, "warnings": r.warnings, "calculated_at": r.calculated_at,
+           "approved_at": r.approved_at, "paid_at": r.paid_at}
+    if slips:
+        rows = list(r.payslips.select_related("employee"))
+        out["payslips"] = [_slip(s, admin=True) for s in rows]
+        out["totals"] = {"gross": str(sum((s.gross for s in rows), Decimal("0"))), "deductions": str(sum((s.deductions for s in rows), Decimal("0"))),
+                         "net": str(sum((s.net for s in rows), Decimal("0"))), "count": len(rows)}
+    return out
+
+
+def _slip(s: Payslip, admin=False) -> dict:
+    out = {"id": str(s.id), "year": s.run.year, "month": s.run.month, "status": s.run.status, "data": s.data, "gross": s.gross,
+           "deductions": s.deductions, "net": s.net, "digest": s.digest, "issued_at": s.run.approved_at}
+    if admin:
+        out |= {"employee_id": str(s.employee_id), "unpaid_days": s.unpaid_days, "adjustments": s.adjustments, "flags": s.flags}
+    return out
+
+
+class RunIn(serializers.Serializer):
+    year = serializers.IntegerField(min_value=2020, max_value=2100)
+    month = serializers.IntegerField(min_value=1, max_value=12)
+
+
+class AdjustmentIn(serializers.Serializer):
+    name = serializers.CharField(max_length=60)
+    type = serializers.ChoiceField(choices=["EARNING", "DEDUCTION"])
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal("0.01"))
+    note = serializers.CharField(max_length=200)
+
+
+class SlipIn(serializers.Serializer):
+    unpaid_days = serializers.DecimalField(max_digits=4, decimal_places=1, min_value=Decimal("0"), max_value=Decimal("31"))
+    adjustments = AdjustmentIn(many=True)
+
+    def validate_unpaid_days(self, v):
+        if v * 2 != int(v * 2):
+            raise serializers.ValidationError("Use whole or half days.")
+        return v
+
+
+def _get_run(request, pk) -> PayrollRun:
+    r = PayrollRun.objects.filter(organization=request.user.organization, pk=pk).first()
+    if r is None:
+        raise BusinessRuleError("NOT_FOUND", "Payroll month not found.")
+    return r
+
+
+class PayrollRunsView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        return Response({"runs": [_run(r) for r in PayrollRun.objects.filter(organization=request.user.organization)[:36]]})
+
+    def post(self, request):
+        s = RunIn(data=request.data)
+        s.is_valid(raise_exception=True)
+        run = pay.calculate(request.user.organization, s.validated_data["year"], s.validated_data["month"], request.user, request)
+        return Response(_run(run, slips=True), status=201)
+
+
+class PayrollRunView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request, pk):
+        return Response(_run(_get_run(request, pk), slips=True))
+
+
+class PayrollRunActionView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request, pk, action):
+        if action not in ("approve", "paid"):
+            raise BusinessRuleError("NOT_FOUND", "Unknown action.")
+        run = _get_run(request, pk)
+        run = pay.approve(run, request.user, request) if action == "approve" else pay.mark_paid(run, request.user, request)
+        return Response(_run(run, slips=True))
+
+
+class PayslipAdjustView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def patch(self, request, pk):
+        slip = Payslip.objects.filter(run__organization=request.user.organization, pk=pk).select_related("run", "employee").first()
+        if slip is None:
+            raise BusinessRuleError("NOT_FOUND", "Payslip not found.")
+        s = SlipIn(data=request.data)
+        s.is_valid(raise_exception=True)
+        return Response(_slip(pay.adjust(slip, s.validated_data["unpaid_days"], s.validated_data["adjustments"], request.user, request), admin=True))
+
+
+class MyPayslipsView(APIView):
+    """Own payslips from approved months only (BRD §8.5: never before approval)."""
+
+    def get(self, request):
+        emp = getattr(request.user, "employee", None)
+        if emp is None:
+            return Response({"payslips": []})
+        qs = Payslip.objects.filter(employee=emp, run__status__in=["APPROVED", "PAID"]).select_related("run").order_by("-run__year", "-run__month")
+        return Response({"payslips": [_slip(s) for s in qs]})
+
+
+class PayslipView(APIView):
+    """One payslip: the owner (approved months only) or the Super Admin. Everyone else gets 404, never a hint it exists."""
+
+    def get(self, request, pk):
+        s = Payslip.objects.filter(run__organization=request.user.organization, pk=pk).select_related("run", "employee").first()
+        admin = request.user.has_role("SUPER_ADMIN")
+        mine = s is not None and s.employee.user_id == request.user.pk and s.run.status != "DRAFT"
+        if s is None or not (admin or mine):
+            raise BusinessRuleError("NOT_FOUND", "Payslip not found.")
+        return Response(_slip(s, admin=admin))

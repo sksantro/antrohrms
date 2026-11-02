@@ -5,7 +5,7 @@ from rest_framework.routers import DefaultRouter
 from accounts import views as auth
 from common import views as common
 from employees.views import DepartmentViewSet, EmployeeImportView, EmployeeRolesView, EmployeeViewSet
-from payroll.views import CompensationView
+from payroll import views as payroll
 
 router = DefaultRouter(trailing_slash=False)
 router.register("employees", EmployeeViewSet, basename="employee")
@@ -21,10 +21,17 @@ api = [
     path("auth/change-password", auth.ChangePasswordView.as_view()),
     path("admin/employees/import", EmployeeImportView.as_view()),
     path("admin/employees/<uuid:pk>/roles", EmployeeRolesView.as_view()),
-    path("admin/compensation/<uuid:employee_id>", CompensationView.as_view()),
+    path("admin/compensation/<uuid:employee_id>", payroll.CompensationView.as_view()),
+    path("admin/payroll/runs", payroll.PayrollRunsView.as_view()),
+    path("admin/payroll/runs/<uuid:pk>", payroll.PayrollRunView.as_view()),
+    path("admin/payroll/runs/<uuid:pk>/<str:action>", payroll.PayrollRunActionView.as_view()),
+    path("admin/payroll/payslips/<uuid:pk>", payroll.PayslipAdjustView.as_view()),
+    path("payslips/me", payroll.MyPayslipsView.as_view()),
+    path("payslips/<uuid:pk>", payroll.PayslipView.as_view()),
     path("admin/audit", common.AuditListView.as_view()),
     path("admin/policies", common.PolicyListView.as_view()),
     path("", include("attendance.urls")),
+    path("", include("leaves.urls")),
     path("", include(router.urls)),
 ]
 

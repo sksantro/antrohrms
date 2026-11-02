@@ -5,7 +5,6 @@ import { Card, CardHeader, PageHeader, Segmented } from '../../components/ui'
 import type { ExceptionItem } from '../../lib/api'
 import { fmtTime, greeting } from '../../lib/format'
 import { useMe, useStore } from '../../lib/store'
-import { KIND_ICON } from './Approvals'
 import { ExceptionsList, KpiRow, LiveTable, ReviewDrawer, useAttendanceAdmin } from './AttendanceAdmin'
 
 export default function CommandCenter() {
@@ -52,7 +51,7 @@ export default function CommandCenter() {
             </div>
             <ul className="p-2">
               {approvals.slice(0, 3).map((a) => {
-                const I = KIND_ICON[a.kind]
+                const I = Inbox
                 return (
                   <li key={a.id}>
                     <Link to="/console/approvals" className="flex items-center gap-3 p-3 rounded-xl hover:bg-ink-50">

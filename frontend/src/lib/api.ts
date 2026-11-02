@@ -159,6 +159,40 @@ async function request<T>(method: string, path: string, body?: unknown, extraHea
   return data as T
 }
 
+// ---------- P2: holidays, leave, payroll ----------
+export type HolidayKind = 'FIXED' | 'OPTIONAL'
+export interface HolidayDTO { date: string; name: string; kind: HolidayKind; chosen?: boolean }
+export interface MyCalendar { year: number; published: boolean; revision: number | null; holidays: HolidayDTO[]; optional_limit: number; optional_chosen: number; today: string }
+export interface CalendarDTO {
+  id: string; year: number; revision: number; status: 'DRAFT' | 'SUBMITTED' | 'PUBLISHED' | 'SUPERSEDED' | 'REJECTED'; note: string; decision_note: string
+  created_by: string; decided_at: string | null; created_at: string; holidays: HolidayDTO[]; changes?: { date: string; change: 'ADDED' | 'REMOVED' | 'CHANGED'; name: string; kind: HolidayKind }[]
+}
+export type LeaveCat = 'CL' | 'SL' | 'EL'
+export type LeaveStatusDTO = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_CHANGES' | 'CANCELLED'
+export interface LeaveBalance { name: string; granted: number; used: number; pending: number; available: number }
+export interface LeaveDTO {
+  id: string; category: LeaveCat; category_name: string; start: string; end: string; half_day: boolean; days: string; reason: string; status: LeaveStatusDTO
+  decision_note: string; decided_at: string | null; created_at: string; cancellable: boolean
+  employee?: { id: string; display_name: string; employee_code: string | null; designation: string }; balance?: LeaveBalance
+}
+export interface LeaveIn { category: LeaveCat; start: string; end: string; half_day: boolean; reason: string }
+export interface SlipLine { code: string; name: string; amount: string; note?: string }
+export interface PayslipDTO {
+  id: string; year: number; month: number; status: 'DRAFT' | 'APPROVED' | 'PAID'; gross: string; deductions: string; net: string; digest: string; issued_at: string | null
+  data: {
+    employer: { name: string }; period: { year: number; month: number; days: number }
+    employee: { code: string | null; name: string; designation: string; department: string; joined: string }
+    paid_days: string; unpaid_days: string; earnings: SlipLine[]; deductions: SlipLine[]; gross: string; total_deductions: string; net: string
+    info: { leave_days: Record<string, number>; attended_days: number; shortfall_days: number }
+  }
+  employee_id?: string; unpaid_days?: string; adjustments?: { name: string; type: 'EARNING' | 'DEDUCTION'; amount: string; note: string }[]; flags?: string[]
+}
+export interface PayrollRunDTO {
+  id: string; year: number; month: number; status: 'DRAFT' | 'APPROVED' | 'PAID'; warnings: { employee: string; code: string; message: string }[]
+  calculated_at: string; approved_at: string | null; paid_at: string | null
+  payslips?: PayslipDTO[]; totals?: { gross: string; deductions: string; net: string; count: number }
+}
+
 const qs = (p: Record<string, string | undefined>) => {
   const s = new URLSearchParams(Object.entries(p).filter(([, v]) => v) as [string, string][]).toString()
   return s ? '?' + s : ''
@@ -203,4 +237,27 @@ export const api = {
   updateOfficeSite: (body: Partial<OfficeSiteDTO>) => request<OfficeSiteDTO>('PATCH', '/admin/office-site', body),
   importPreview: (file: File) => { const f = new FormData(); f.append('file', file); f.append('commit', 'false'); return request<ImportPreview>('POST', '/admin/employees/import', f) },
   importCommit: (file: File) => { const f = new FormData(); f.append('file', file); f.append('commit', 'true'); return request<ImportResult>('POST', '/admin/employees/import', f) },
+  myCalendar: (year: number) => request<MyCalendar>('GET', `/holidays/calendar?year=${year}`),
+  chooseHoliday: (date: string) => request<{ ok: true }>('POST', '/holidays/optional-selections', { date }),
+  unchooseHoliday: (date: string) => request<void>('DELETE', `/holidays/optional-selections?date=${date}`),
+  calendars: (year: number) => request<{ year: number; calendars: CalendarDTO[] }>('GET', `/hr/holidays/drafts?year=${year}`),
+  openDraft: (year: number) => request<CalendarDTO>('POST', `/hr/holidays/drafts?year=${year}`),
+  saveDraft: (id: string, holidays: HolidayDTO[], note: string) => request<CalendarDTO>('PUT', `/hr/holidays/drafts/${id}`, { holidays, note }),
+  submitDraft: (id: string) => request<CalendarDTO>('POST', `/hr/holidays/drafts/${id}/submit`),
+  decideCalendar: (id: string, decision: 'APPROVE' | 'NEEDS_CHANGES', note: string) => request<CalendarDTO>('POST', `/admin/holidays/${id}/decision`, { decision, note }),
+  leaveBalances: (year: number) => request<{ year: number; balances: Record<LeaveCat, LeaveBalance>; on_probation: boolean }>('GET', `/leave/balances?year=${year}`),
+  leavePreview: (start: string, end: string) => request<{ days: number; holidays: { date: string; name: string }[] }>('GET', `/leave/preview${qs({ start, end })}`),
+  myLeave: () => request<{ requests: LeaveDTO[] }>('GET', '/leave/requests'),
+  applyLeave: (body: LeaveIn) => request<LeaveDTO>('POST', '/leave/requests', body),
+  resubmitLeave: (id: string, body: LeaveIn) => request<LeaveDTO>('PUT', `/leave/requests/${id}`, body),
+  cancelLeave: (id: string) => request<LeaveDTO>('POST', `/leave/requests/${id}/cancel`),
+  adminLeave: (status?: string) => request<{ requests: LeaveDTO[] }>('GET', `/admin/leave/requests${qs({ status })}`),
+  decideLeave: (id: string, decision: 'APPROVE' | 'REJECT' | 'NEEDS_CHANGES', note: string) => request<LeaveDTO>('POST', `/admin/leave/requests/${id}/decision`, { decision, note }),
+  employeeLeaveBalance: (id: string, year: number) => request<{ balances: Record<LeaveCat, LeaveBalance> }>('GET', `/admin/leave/balances/${id}?year=${year}`),
+  payrollRuns: () => request<{ runs: PayrollRunDTO[] }>('GET', '/admin/payroll/runs'),
+  calculatePayroll: (year: number, month: number) => request<PayrollRunDTO>('POST', '/admin/payroll/runs', { year, month }),
+  payrollRun: (id: string) => request<PayrollRunDTO>('GET', `/admin/payroll/runs/${id}`),
+  payrollAction: (id: string, action: 'approve' | 'paid') => request<PayrollRunDTO>('POST', `/admin/payroll/runs/${id}/${action}`),
+  adjustPayslip: (id: string, body: { unpaid_days: string; adjustments: NonNullable<PayslipDTO['adjustments']> }) => request<PayslipDTO>('PATCH', `/admin/payroll/payslips/${id}`, body),
+  myPayslips: () => request<{ payslips: PayslipDTO[] }>('GET', '/payslips/me'),
 }

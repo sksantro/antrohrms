@@ -28,3 +28,9 @@ export const greeting = (d = new Date()) => {
   const h = Number(new Intl.DateTimeFormat('en-IN', { timeZone: TZ, hour: 'numeric', hour12: false }).format(d))
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
 }
+
+/** Today's date in India (YYYY-MM-DD), whatever the device's timezone. */
+export const istToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
+export const monthName = (y: number, m: number) => fmtDate(`${y}-${String(m).padStart(2, '0')}-01`, { month: 'long', year: 'numeric' })
+export const inr2 = (n: number | string) =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(n))
