@@ -295,10 +295,10 @@ def check_in(*, employee: Employee, actor, location: Location | None, unavailabl
     today = timezone.localdate(at)
     org = employee.organization
     if not is_workday(org, today):
-        raise BusinessRuleError("NOT_A_WORKDAY", "Office attendance is Monday to Friday. Weekend and holiday work arrives with Holiday Work (phase P2).")
+        raise BusinessRuleError("NOT_A_WORKDAY", "Office attendance is Monday to Friday. For weekend work, request Holiday Work.")
     off = day_off(employee, today)
     if off:
-        raise BusinessRuleError("DAY_OFF", f"{off}, so there's nothing to check in for. Cancel the leave first if you're working.")
+        raise BusinessRuleError("DAY_OFF", f"{off}, so there's nothing to check in for. To work on a holiday, request Holiday Work; if you're on leave, cancel it first.")
     existing = open_day(employee)
     if existing and existing.work_date < today:
         raise ConflictError("PREVIOUS_DAY_OPEN", f"You didn't check out on {existing.work_date:%d %b}. Check out that day first (with a reason), then check in.")

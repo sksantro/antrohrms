@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from rest_framework import serializers
 from rest_framework.response import Response
@@ -141,7 +142,7 @@ def _leave(r: LeaveRequest, admin=False) -> dict:
 
 
 def _bal(b: dict) -> dict:
-    return {k: {kk: float(vv) for kk, vv in v.items()} | {"name": Category(k).label} for k, v in b.items()}
+    return {k: {kk: float(vv) if isinstance(vv, Decimal) else vv for kk, vv in v.items()} | {"name": Category(k).label} for k, v in b.items()}
 
 
 class LeaveIn(serializers.Serializer):
@@ -232,3 +233,106 @@ class AdminLeaveBalanceView(APIView):
         if emp is None:
             raise BusinessRuleError("NOT_FOUND", "Employee not found.")
         return Response({"balances": _bal(svc.balances(emp, _year(request)))})
+
+
+# ---------- holiday work and comp-off (BRD §7) ----------
+from . import holiday_work as hws  # noqa: E402
+from .models import HolidayWork  # noqa: E402
+
+
+def _hw(h: HolidayWork, admin=False) -> dict:
+    out = {"id": str(h.id), "work_date": h.work_date, "day_label": h.day_label, "title": h.title, "purpose": h.purpose, "expected_hours": float(h.expected_hours),
+           "emergency": h.emergency, "status": h.status, "intervals": h.intervals, "running": h.running, "worked_seconds": h.worked_seconds,
+           "summary": h.summary, "task_refs": h.task_refs, "approved_hours": h.approved_hours and float(h.approved_hours), "units": h.units and float(h.units),
+           "decision_note": h.decision_note, "review_note": h.review_note, "created_at": h.created_at,
+           "can_work": h.status in ("APPROVED", "EMERGENCY") and h.work_date == svc.today(),
+           "cancellable": h.status in ("REQUESTED", "APPROVED", "EMERGENCY") and not h.intervals}
+    if admin:
+        out["employee"] = {"id": str(h.employee_id), "display_name": h.employee.display_name, "employee_code": h.employee.employee_code, "designation": h.employee.designation}
+    return out
+
+
+class HolidayWorkIn(serializers.Serializer):
+    work_date = serializers.DateField()
+    title = serializers.CharField(max_length=120, allow_blank=True)
+    purpose = serializers.CharField(max_length=500, allow_blank=True)
+    expected_hours = serializers.DecimalField(max_digits=3, decimal_places=1)
+    emergency = serializers.BooleanField(default=False)
+
+
+class HolidayWorkListView(APIView):
+    def get(self, request):
+        emp = _employee(request)
+        b = _bal({"CO": hws.balance(emp)})["CO"]
+        return Response({"requests": [_hw(h) for h in emp.holiday_work.all()[:100]], "eligible": hws.eligible_dates(emp), "balance": b,
+                         "rule_active": hws.rule(emp.organization)["active"]})
+
+    def post(self, request):
+        s = HolidayWorkIn(data=request.data)
+        s.is_valid(raise_exception=True)
+        return Response(_hw(hws.request_work(_employee(request), request.user, **s.validated_data, request=request)), status=201)
+
+
+class HolidayWorkActionView(APIView):
+    def post(self, request, pk, action):
+        h = _get(HolidayWork, request, pk, employee=_employee(request))
+        if action == "start":
+            h = hws.start(h, request.user, request)
+        elif action == "pause":
+            h = hws.pause(h, request.user, request)
+        elif action == "stop":
+            h = hws.stop(h, request.user, summary=str(request.data.get("summary", "")), task_refs=str(request.data.get("task_refs", "")), request=request)
+        elif action == "cancel":
+            h = hws.cancel(h, request.user, request)
+        else:
+            raise BusinessRuleError("NOT_FOUND", "Unknown action.")
+        return Response(_hw(h))
+
+
+class AdminHolidayWorkView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        qs = HolidayWork.objects.filter(organization=request.user.organization).select_related("employee")
+        if st := request.query_params.get("status"):
+            qs = qs.filter(status__in=st.split(","))
+        return Response({"requests": [_hw(h, admin=True) for h in qs[:300]], "rule": hws.rule(request.user.organization)})
+
+
+class HolidayWorkDecisionIn(serializers.Serializer):
+    decision = serializers.ChoiceField(choices=["APPROVE", "REJECT", "CREDIT", "NO_CREDIT"])
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+    hours = serializers.DecimalField(max_digits=4, decimal_places=1, required=False, allow_null=True, default=None)
+
+
+class AdminHolidayWorkDecisionView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request, pk):
+        s = HolidayWorkDecisionIn(data=request.data)
+        s.is_valid(raise_exception=True)
+        h = hws.decide(_get(HolidayWork, request, pk), request.user, request=request, **s.validated_data)
+        return Response(_hw(h, admin=True))
+
+
+class CompOffRuleIn(serializers.Serializer):
+    active = serializers.BooleanField()
+    full_day_hours = serializers.DecimalField(max_digits=3, decimal_places=1)
+    half_day_hours = serializers.DecimalField(max_digits=3, decimal_places=1)
+    expiry_days = serializers.IntegerField()
+    review_note = serializers.CharField(max_length=500, allow_blank=True, default="")
+
+
+class CompOffRuleView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        row = hws.rule_row(request.user.organization)
+        return Response({**hws.rule(request.user.organization), "updated_by": row.created_by.display_name if row and row.created_by else None,
+                         "effective_from": row.effective_from if row else None})
+
+    def put(self, request):
+        s = CompOffRuleIn(data=request.data)
+        s.is_valid(raise_exception=True)
+        hws.set_rule(request.user.organization, request.user, **s.validated_data, request=request)
+        return self.get(request)

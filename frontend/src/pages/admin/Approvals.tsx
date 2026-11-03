@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { CalendarCheck, CalendarHeart, Check, ChevronRight, Clock, House, Inbox, X } from 'lucide-react'
+import { CalendarCheck, CalendarClock, CalendarHeart, Check, ChevronRight, Clock, House, Inbox, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Avatar, Card, CardHeader, PageHeader, Pill } from '../../components/ui'
@@ -16,6 +16,7 @@ export default function Approvals() {
   const year = Number(istToday().slice(0, 4))
   const leave = useApi(() => api.adminLeave('SUBMITTED'), [])
   const att = useApi(() => api.exceptions(), [])
+  const hw = useApi(() => api.adminHolidayWork('REQUESTED,AWAITING_REVIEW'), [])
   const cal = useApi(() => Promise.all([api.calendars(year), api.calendars(year + 1)]), [year])
   const items = att.data?.items ?? []
   const wfh = items.filter((i) => i.kind === 'WFH_REQUEST')
@@ -35,7 +36,8 @@ export default function Approvals() {
     })),
   ]
   const reload = () => { leave.reload(); att.reload() }
-  const total = rows.length + reviews + calendars
+  const holidayWork = hw.data?.requests.length ?? 0
+  const total = rows.length + reviews + calendars + holidayWork
 
   return (
     <>
@@ -49,6 +51,7 @@ export default function Approvals() {
         <div className="space-y-4">
           {[
             { icon: Clock, title: 'Attendance reviews', body: 'Location, early check-outs, corrections, WFH days', n: att.data ? reviews : null, to: '/console/attendance' },
+            { icon: CalendarClock, title: 'Holiday work', body: 'Approve weekend work, verify hours, grant comp-off', n: hw.data ? holidayWork : null, to: '/console/holiday-work' },
             { icon: CalendarHeart, title: 'Holiday calendar', body: 'Revisions waiting to publish', n: cal.data ? calendars : null, to: '/hr/holidays' },
             { icon: CalendarCheck, title: 'All leave requests', body: 'History and decided requests', n: null, to: '/console/leave' },
           ].map((x) => (

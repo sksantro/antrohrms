@@ -167,9 +167,17 @@ export interface CalendarDTO {
   id: string; year: number; revision: number; status: 'DRAFT' | 'SUBMITTED' | 'PUBLISHED' | 'SUPERSEDED' | 'REJECTED'; note: string; decision_note: string
   created_by: string; decided_at: string | null; created_at: string; holidays: HolidayDTO[]; changes?: { date: string; change: 'ADDED' | 'REMOVED' | 'CHANGED'; name: string; kind: HolidayKind }[]
 }
-export type LeaveCat = 'CL' | 'SL' | 'EL'
+export type LeaveCat = 'CL' | 'SL' | 'EL' | 'CO'
 export type LeaveStatusDTO = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'NEEDS_CHANGES' | 'CANCELLED'
-export interface LeaveBalance { name: string; granted: number; used: number; pending: number; available: number }
+export interface LeaveBalance { name: string; granted: number; used: number; pending: number; available: number; expired?: number; next_expiry?: string | null }
+export type HolidayWorkStatus = 'REQUESTED' | 'APPROVED' | 'EMERGENCY' | 'REJECTED' | 'CANCELLED' | 'AWAITING_REVIEW' | 'CREDITED' | 'NOT_CREDITED'
+export interface HolidayWorkDTO {
+  id: string; work_date: string; day_label: string; title: string; purpose: string; expected_hours: number; emergency: boolean; status: HolidayWorkStatus
+  intervals: [string, string | null][]; running: boolean; worked_seconds: number; summary: string; task_refs: string; approved_hours: number | null; units: number | null
+  decision_note: string; review_note: string; created_at: string; can_work: boolean; cancellable: boolean
+  employee?: { id: string; display_name: string; employee_code: string | null; designation: string }
+}
+export interface CompOffRule { active: boolean; full_day_hours: number; half_day_hours: number; expiry_days: number; review_note: string; updated_by?: string | null; effective_from?: string | null }
 export interface LeaveDTO {
   id: string; category: LeaveCat; category_name: string; start: string; end: string; half_day: boolean; days: string; reason: string; status: LeaveStatusDTO
   decision_note: string; decided_at: string | null; created_at: string; cancellable: boolean
@@ -271,6 +279,13 @@ export const api = {
   applyLeave: (body: LeaveIn) => request<LeaveDTO>('POST', '/leave/requests', body),
   resubmitLeave: (id: string, body: LeaveIn) => request<LeaveDTO>('PUT', `/leave/requests/${id}`, body),
   cancelLeave: (id: string) => request<LeaveDTO>('POST', `/leave/requests/${id}/cancel`),
+  holidayWork: () => request<{ requests: HolidayWorkDTO[]; eligible: { date: string; label: string }[]; balance: LeaveBalance; rule_active: boolean }>('GET', '/holiday-work/requests'),
+  requestHolidayWork: (body: { work_date: string; title: string; purpose: string; expected_hours: number; emergency: boolean }) => request<HolidayWorkDTO>('POST', '/holiday-work/requests', body),
+  holidayWorkAction: (id: string, action: 'start' | 'pause' | 'stop' | 'cancel', body?: { summary: string; task_refs: string }) => request<HolidayWorkDTO>('POST', `/holiday-work/${id}/${action}`, body),
+  adminHolidayWork: (status?: string) => request<{ requests: HolidayWorkDTO[]; rule: CompOffRule }>('GET', `/admin/holiday-work${qs({ status })}`),
+  decideHolidayWork: (id: string, decision: 'APPROVE' | 'REJECT' | 'CREDIT' | 'NO_CREDIT', note: string, hours?: number) => request<HolidayWorkDTO>('POST', `/admin/holiday-work/${id}/decision`, { decision, note, hours: hours ?? null }),
+  compOffRule: () => request<CompOffRule>('GET', '/admin/holiday-work/rule'),
+  setCompOffRule: (body: CompOffRule) => request<CompOffRule>('PUT', '/admin/holiday-work/rule', body),
   adminLeave: (status?: string) => request<{ requests: LeaveDTO[] }>('GET', `/admin/leave/requests${qs({ status })}`),
   decideLeave: (id: string, decision: 'APPROVE' | 'REJECT' | 'NEEDS_CHANGES', note: string) => request<LeaveDTO>('POST', `/admin/leave/requests/${id}/decision`, { decision, note }),
   employeeLeaveBalance: (id: string, year: number) => request<{ balances: Record<LeaveCat, LeaveBalance> }>('GET', `/admin/leave/balances/${id}?year=${year}`),

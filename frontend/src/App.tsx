@@ -16,6 +16,7 @@ import AttendanceAdmin from './pages/admin/AttendanceAdmin'
 import CommandCenter from './pages/admin/CommandCenter'
 import Directory from './pages/admin/Directory'
 import HolidaysAdmin from './pages/admin/HolidaysAdmin'
+import HolidayWorkAdmin from './pages/admin/HolidayWorkAdmin'
 import LeaveAdmin from './pages/admin/LeaveAdmin'
 import Payroll from './pages/admin/Payroll'
 import Policy from './pages/admin/Policy'
@@ -24,6 +25,7 @@ import People from './pages/People'
 import { HrAssets, MyAssets } from './pages/Assets'
 import Attendance from './pages/Attendance'
 import Holidays from './pages/Holidays'
+import HolidayWork from './pages/HolidayWork'
 import Home from './pages/Home'
 import Recruitment from './pages/hr/Recruitment'
 import Leave from './pages/Leave'
@@ -104,6 +106,7 @@ function AppRoutes() {
         <Route path="/app/attendance" element={<Attendance />} />
         <Route path="/app/leave" element={<Leave />} />
         <Route path="/app/holidays" element={<Holidays />} />
+        <Route path="/app/holiday-work" element={<HolidayWork />} />
         <Route path="/app/payslips" element={<Payslips />} />
         <Route path="/app/assets" element={<Preview><MyAssets /></Preview>} />
         <Route path="/app/profile" element={<Profile />} />
@@ -119,6 +122,7 @@ function AppRoutes() {
         <Route path="/app/people" element={<People />} />
         <Route path="/console/access" element={<Guard roles={['SUPER_ADMIN']}><AccessAdmin /></Guard>} />
         <Route path="/console/leave" element={<Guard roles={['SUPER_ADMIN']}><LeaveAdmin /></Guard>} />
+        <Route path="/console/holiday-work" element={<Guard roles={['SUPER_ADMIN']}><HolidayWorkAdmin /></Guard>} />
         <Route path="/hr/holidays" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HolidaysAdmin /></Guard>} />
         <Route path="/console/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />
         <Route path="/console/settings" element={<Guard roles={['SUPER_ADMIN']}><Policy /></Guard>} />

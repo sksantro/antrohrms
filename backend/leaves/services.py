@@ -16,7 +16,7 @@ from .models import Category, Holiday, HolidayCalendar, LeaveLedger, LeaveReques
 
 S = HolidayCalendar.Status
 L = LeaveRequest.Status
-CATS = [c.value for c in Category]
+CATS = ["CL", "SL", "EL"]  # annual-grant categories; CO (Comp-Off) is backed by CompOffLedger
 ZERO = Decimal("0")
 
 
@@ -212,6 +212,8 @@ def balances(employee: Employee, year: int) -> dict:
         used = -(rows.filter(source__in=["LEAVE", "CANCEL"]).aggregate(s=Sum("days"))["s"] or ZERO)
         pending = reqs.filter(category=cat, status__in=LeaveRequest.HOLDING).aggregate(s=Sum("days"))["s"] or ZERO
         out[cat] = {"granted": granted, "used": used, "pending": pending, "available": granted - used - pending}
+    from .holiday_work import balance
+    out["CO"] = balance(employee)
     return out
 
 
@@ -227,8 +229,8 @@ def _payroll_locked(org, d: date) -> bool:
 
 def _validate(employee: Employee, category: str, start: date, end: date, half_day: bool, exclude=None) -> Decimal:
     t = today()
-    if category not in CATS:
-        raise BusinessRuleError("INVALID_CATEGORY", "Choose Casual, Sick or Earned Leave.")
+    if category not in CATS and category != "CO":
+        raise BusinessRuleError("INVALID_CATEGORY", "Choose Casual, Sick, Earned Leave or Comp-Off.")
     if end < start:
         raise BusinessRuleError("END_BEFORE_START", "The end date is before the start date.", field_errors={"end": ["Must be on or after the start date."]})
     if start.year != end.year:
@@ -255,6 +257,12 @@ def _validate(employee: Employee, category: str, start: date, end: date, half_da
         worked = AttendanceDay.objects.filter(employee=employee, work_date__in=days).order_by("work_date").first()
         if worked:
             raise ConflictError("ATTENDED_THAT_DAY", f"You checked in on {worked.work_date:%d %b}. Take a half day or leave that date out.")
+    if category == "CO":
+        from .holiday_work import available_on
+        left = available_on(employee, end, exclude_pending=exclude)
+        if n > left:
+            raise BusinessRuleError("INSUFFICIENT_BALANCE", f"You have {left} comp-off day(s) valid on those dates and this needs {n}.")
+        return n
     bal = balances(employee, start.year)[category]
     if n > bal["available"]:
         raise BusinessRuleError("INSUFFICIENT_BALANCE", f"You have {bal['available']} {category} day(s) available and this needs {n}.")
@@ -300,8 +308,12 @@ def cancel(r: LeaveRequest, actor, request=None) -> LeaveRequest:
             raise BusinessRuleError("LEAVE_STARTED", "Approved leave that has started can't be cancelled here. Ask the Super Admin.")
         if _payroll_locked(r.organization, r.start):
             raise BusinessRuleError("PAYROLL_LOCKED", "Payroll for that month is already approved. Ask the Super Admin for an adjustment.")
-        LeaveLedger.objects.create(organization=r.organization, employee=r.employee, category=r.category, year=r.start.year, days=r.days,
-                                   source=LeaveLedger.Source.CANCEL, request=r, note="Cancelled by employee", created_by=actor)
+        if r.category == "CO":
+            from .holiday_work import restore
+            restore(r, actor)
+        else:
+            LeaveLedger.objects.create(organization=r.organization, employee=r.employee, category=r.category, year=r.start.year, days=r.days,
+                                       source=LeaveLedger.Source.CANCEL, request=r, note="Cancelled by employee", created_by=actor)
     else:
         raise ConflictError("NOT_CANCELLABLE", "This request is already closed.")
     r.status = L.CANCELLED
@@ -323,11 +335,15 @@ def decide(r: LeaveRequest, actor, decision: str, note: str, request=None) -> Le
     if decision == "APPROVE":
         if r.start < today() and len(note) < 3:
             raise BusinessRuleError("JUSTIFICATION_REQUIRED", "This leave is in the past. Add a justification to approve it retrospectively.", field_errors={"note": ["Required for past dates."]})
-        bal = balances(r.employee, r.start.year)[r.category]
-        if bal["available"] + r.days < r.days:  # its own pending hold is part of `available`
-            raise BusinessRuleError("INSUFFICIENT_BALANCE", f"Only {bal['available'] + r.days} {r.category} day(s) left.")
-        LeaveLedger.objects.create(organization=r.organization, employee=r.employee, category=r.category, year=r.start.year, days=-r.days,
-                                   source=LeaveLedger.Source.LEAVE, request=r, note=note[:200], created_by=actor)
+        if r.category == "CO":
+            from .holiday_work import consume
+            consume(r, actor)
+        else:
+            bal = balances(r.employee, r.start.year)[r.category]
+            if bal["available"] + r.days < r.days:  # its own pending hold is part of `available`
+                raise BusinessRuleError("INSUFFICIENT_BALANCE", f"Only {bal['available'] + r.days} {r.category} day(s) left.")
+            LeaveLedger.objects.create(organization=r.organization, employee=r.employee, category=r.category, year=r.start.year, days=-r.days,
+                                       source=LeaveLedger.Source.LEAVE, request=r, note=note[:200], created_by=actor)
     r.status = {"APPROVE": L.APPROVED, "REJECT": L.REJECTED, "NEEDS_CHANGES": L.NEEDS_CHANGES}[decision]
     r.decision_note, r.decided_by, r.decided_at = note, actor, timezone.now()
     r.save()

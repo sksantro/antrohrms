@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { CalendarDays, CalendarPlus, Pencil, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Card, CardHeader, Drawer, EmptyState, PageHeader, Pill, ProgressRing, Segmented, type Tone } from '../components/ui'
-import { api, type LeaveCat, type LeaveDTO, type LeaveStatusDTO } from '../lib/api'
+import { api, type LeaveBalance, type LeaveCat, type LeaveDTO, type LeaveStatusDTO } from '../lib/api'
 import { fmtDate, istToday } from '../lib/format'
 import { useStore } from '../lib/store'
 import { errMsg, useApi } from '../lib/useApi'
@@ -18,7 +18,10 @@ export const CAT: Record<LeaveCat, { name: string; color: string; hint: string }
   CL: { name: 'Casual Leave', color: '#3d5afe', hint: 'Personal work, short notice' },
   SL: { name: 'Sick Leave', color: '#12b6ff', hint: 'Illness or a doctor’s visit' },
   EL: { name: 'Earned Leave', color: '#8b3dff', hint: 'Planned vacation' },
+  CO: { name: 'Comp-Off', color: '#10b981', hint: 'Earned by approved holiday work' },
 }
+/** CL/SL/EL always; Comp-Off only once some has been credited. */
+export const cats = (b?: Partial<Record<LeaveCat, { granted: number }>>): LeaveCat[] => (b?.CO?.granted ? ['CL', 'SL', 'EL', 'CO'] : ['CL', 'SL', 'EL'])
 export const range = (l: Pick<LeaveDTO, 'start' | 'end' | 'half_day'>) =>
   l.start === l.end ? `${fmtDate(l.start, { weekday: 'short', day: 'numeric', month: 'short' })}${l.half_day ? ' · half day' : ''}`
     : `${fmtDate(l.start, { day: 'numeric', month: 'short' })} – ${fmtDate(l.end, { day: 'numeric', month: 'short' })}`
@@ -43,8 +46,8 @@ export default function Leave() {
       <PageHeader eyebrow={`Leave year ${year}`} title="Leave" subtitle="Casual, Sick and Earned Leave. The Super Admin approves every request."
         actions={<button className="btn-brand h-11 px-5 rounded-xl" onClick={() => setForm('new')}><CalendarPlus size={17} /> Apply for leave</button>} />
 
-      <div className="grid sm:grid-cols-3 gap-4 mb-6">
-        {(['CL', 'SL', 'EL'] as LeaveCat[]).map((c, i) => {
+      <div className={clsx('grid sm:grid-cols-2 gap-4 mb-6', cats(bal.data?.balances).length === 4 ? 'xl:grid-cols-4' : 'lg:grid-cols-3')}>
+        {cats(bal.data?.balances).map((c, i) => {
           const b = bal.data?.balances[c]
           return (
             <Card key={c} className="p-5 flex items-center gap-5 animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
@@ -53,7 +56,8 @@ export default function Leave() {
               </ProgressRing>
               <div className="min-w-0">
                 <div className="font-bold text-ink-900">{CAT[c].name}</div>
-                <div className="text-[12.5px] text-ink-500 mt-1">{b ? <>{b.granted} granted · {b.used} used{b.pending ? <> · <span className="text-amber-600 font-medium">{b.pending} pending</span></> : null}</> : 'Loading…'}</div>
+                <div className="text-[12.5px] text-ink-500 mt-1">{b ? <>{b.granted} {c === 'CO' ? 'earned' : 'granted'} · {b.used} used{b.pending ? <> · <span className="text-amber-600 font-medium">{b.pending} pending</span></> : null}{b.expired ? ` · ${b.expired} expired` : ''}</> : 'Loading…'}</div>
+                {c === 'CO' && b?.next_expiry && <div className="text-[11.5px] text-amber-700 mt-0.5">Use by {fmtDate(b.next_expiry, { day: 'numeric', month: 'short' })}</div>}
               </div>
             </Card>
           )
@@ -91,7 +95,7 @@ export default function Leave() {
   )
 }
 
-function LeaveForm({ edit, balances, onClose, onDone }: { edit: LeaveDTO | null; balances?: Record<LeaveCat, { available: number }>; onClose: () => void; onDone: () => void }) {
+function LeaveForm({ edit, balances, onClose, onDone }: { edit: LeaveDTO | null; balances?: Record<LeaveCat, LeaveBalance>; onClose: () => void; onDone: () => void }) {
   const { toast } = useStore()
   const [cat, setCat] = useState<LeaveCat>(edit?.category ?? 'CL')
   const [start, setStart] = useState(edit?.start ?? '')
@@ -136,8 +140,8 @@ function LeaveForm({ edit, balances, onClose, onDone }: { edit: LeaveDTO | null;
         {edit?.decision_note && <div className="rounded-xl bg-sky-50 text-sky-800 px-3 py-2.5 text-[13px]"><b>Super Admin asked:</b> {edit.decision_note}</div>}
         <div>
           <div className="label">Type of leave</div>
-          <div className="grid grid-cols-3 gap-2">
-            {(['CL', 'SL', 'EL'] as LeaveCat[]).map((c) => (
+          <div className={clsx('grid gap-2', cats(balances).length === 4 ? 'grid-cols-2' : 'grid-cols-3')}>
+            {cats(balances).map((c) => (
               <button key={c} onClick={() => setCat(c)} className={clsx('rounded-xl p-3 text-left ring-1 transition', cat === c ? 'ring-brand-400 bg-brand-50/70' : 'ring-ink-200 hover:ring-brand-300')}>
                 <div className="font-semibold text-[13.5px] text-ink-900">{CAT[c].name}</div>
                 <div className="text-[11.5px] text-ink-500 mt-0.5">{balances ? `${balances[c].available} left` : CAT[c].hint}</div>

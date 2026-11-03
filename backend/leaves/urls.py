@@ -17,4 +17,9 @@ urlpatterns = [
     path("admin/leave/requests", v.AdminLeaveRequestsView.as_view()),
     path("admin/leave/requests/<uuid:pk>/decision", v.AdminLeaveDecisionView.as_view()),
     path("admin/leave/balances/<uuid:employee_id>", v.AdminLeaveBalanceView.as_view()),
+    path("holiday-work/requests", v.HolidayWorkListView.as_view()),
+    path("holiday-work/<uuid:pk>/<str:action>", v.HolidayWorkActionView.as_view()),
+    path("admin/holiday-work", v.AdminHolidayWorkView.as_view()),
+    path("admin/holiday-work/rule", v.CompOffRuleView.as_view()),
+    path("admin/holiday-work/<uuid:pk>/decision", v.AdminHolidayWorkDecisionView.as_view()),
 ]

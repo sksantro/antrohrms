@@ -11,4 +11,14 @@ Tests: `python manage.py test` → 123 passing (`leaves/tests.py`, `payroll/test
 | §8 Payroll | Monthly run from effective-dated salary versions; pro-rata for joiners and unpaid days; Telangana PT slabs; PF/TDS stay off (flagged if switched on without rules); adjustments need a note; negative net blocks approval; approved month locked; payslips visible and emailed only after approval; SHA-256 checksum per slip. Leave and shortfall shown, never auto-deducted. |
 | §8.5 Payslip | Employer, period, employee code/name/designation/department/joining, paid/unpaid days, earnings, deductions, gross, total deductions, net (paise). "Download PDF" prints the slip. |
 
-Not in this release: Holiday Work + Comp-Off (§7), leave proof uploads (needs document storage, P3), server-generated PDF files, statutory review of quotas/PT (legal gate).
+## Holiday Work + Comp-Off (§7), added 3 Nov 2026
+| Rule | Where it's enforced | Test |
+|---|---|---|
+| Only weekly offs, fixed holidays and the person's chosen optional holidays; remote only, no geofence | `leaves/holiday_work.py` `day_label`, `request_work` | `test_only_weekly_offs_and_holidays_are_eligible` |
+| Prior Super Admin approval; emergency only for today, starts at once, reviewed after | `request_work`, `start`, `decide` | `test_full_flow_credits_exactly_once`, `test_emergency_starts_now_and_half_day_rules` |
+| Start / pause / resume / end with a work summary; a forgotten end can't run past midnight | `start`, `pause`, `stop`, `_close` | `test_full_flow_credits_exactly_once` |
+| Hours alone never credit: Super Admin verifies hours (≤ recorded); credit only while the rule is marked legally reviewed | `decide` (`LEGAL_RULE_INACTIVE`), `set_rule` | same |
+| ≥ 8 h = 1 day, ≥ 4 h = ½ day (policy `compoff.rule`, editable); ledger posted once, with rule revision, hours, approver, expiry | `CompOffLedger`, constraint `one_grant_per_holiday_work` | same, `test_half_day_credit` |
+| Comp-Off used as leave type CO, drawn from grants valid on the dates (earliest expiry first); cancel restores | `consume`, `restore`, `_validate` | `test_use_and_cancel_restores`, `test_expired_comp_off_cannot_be_used` |
+
+Not in this release: leave proof uploads (needs document storage, P3), server-generated PDF files, statutory review of quotas/PT (legal gate).

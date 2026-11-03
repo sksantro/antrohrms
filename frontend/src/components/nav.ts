@@ -1,4 +1,4 @@
-import { FileSpreadsheet, KeyRound,
+import { CalendarClock, FileSpreadsheet, KeyRound,
   BadgeCheck, Briefcase, CalendarDays, ClipboardCheck, Clock, FileSignature, FileText, Gauge, Inbox, LayoutDashboard,
   Laptop, LogOut, Receipt, ScrollText, Settings2, Sparkles, Star, Sun, UserCircle, UserPlus, Users, Wallet, type LucideIcon,
 } from 'lucide-react'
@@ -15,6 +15,7 @@ const SELF: NavSection = {
     { to: '/app/attendance', label: 'Attendance', icon: Clock },
     { to: '/app/leave', label: 'Leave', icon: CalendarDays },
     { to: '/app/holidays', label: 'Holiday Calendar', icon: Sun },
+    { to: '/app/holiday-work', label: 'Holiday Work', icon: CalendarClock },
     { to: '/app/payslips', label: 'Payslips', icon: Receipt },
     { to: '/app/documents', label: 'Documents', icon: FileText, planned: 'P3' },
     { to: '/app/assets', label: 'Assets', icon: Laptop, sample: 'P4' },
@@ -47,6 +48,7 @@ const ADMIN: NavSection = {
     { to: '/console/attendance', label: 'Attendance', icon: Clock },
     { to: '/console/leave', label: 'Leave', icon: CalendarDays },
     { to: '/hr/holidays', label: 'Holidays', icon: Sun },
+    { to: '/console/holiday-work', label: 'Holiday Work', icon: CalendarClock },
     { to: '/console/payroll', label: 'Payroll', icon: Wallet },
     { to: '/console/appraisals', label: 'Appraisals', icon: Sparkles, planned: 'P5' },
     { to: '/console/reports', label: 'Reports', icon: FileSpreadsheet },

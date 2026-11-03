@@ -72,6 +72,7 @@ class Category(models.TextChoices):
     CL = "CL", "Casual Leave"
     SL = "SL", "Sick Leave"
     EL = "EL", "Earned Leave"
+    CO = "CO", "Comp-Off"  # balance comes from CompOffLedger, never LeaveLedger (BRD §7.2)
 
 
 class LeaveRequest(models.Model):
@@ -133,3 +134,79 @@ class LeaveLedger(models.Model):
             models.UniqueConstraint(fields=["employee", "category", "year"], condition=Q(source="GRANT"), name="one_grant_per_year"),
             models.UniqueConstraint(fields=["request", "source"], condition=Q(request__isnull=False), name="one_ledger_row_per_request_action"),
         ]
+
+
+class HolidayWork(models.Model):
+    """Remote-only work on a weekly off or holiday (BRD §7.1). Hours alone never award comp-off; the Super Admin credits it after review."""
+
+    class Status(models.TextChoices):
+        REQUESTED = "REQUESTED"  # waiting for prior approval
+        APPROVED = "APPROVED"  # may work on the day
+        EMERGENCY = "EMERGENCY"  # started without prior approval; reviewed afterwards
+        REJECTED = "REJECTED"
+        CANCELLED = "CANCELLED"
+        AWAITING_REVIEW = "AWAITING_REVIEW"  # work ended; Super Admin verifies the time
+        CREDITED = "CREDITED"
+        NOT_CREDITED = "NOT_CREDITED"
+
+    CLOSED = ("REJECTED", "CANCELLED")
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey("common.Organization", on_delete=models.PROTECT)
+    employee = models.ForeignKey("employees.Employee", on_delete=models.PROTECT, related_name="holiday_work")
+    work_date = models.DateField()
+    day_label = models.CharField(max_length=80)
+    title = models.CharField(max_length=120)
+    purpose = models.CharField(max_length=500)
+    expected_hours = models.DecimalField(max_digits=3, decimal_places=1)
+    emergency = models.BooleanField(default=False)
+    status = models.CharField(max_length=16, choices=Status.choices)
+    intervals = models.JSONField(default=list)  # [[start_iso, end_iso | null], ...]
+    worked_seconds = models.PositiveIntegerField(default=0)
+    summary = models.TextField(blank=True)
+    task_refs = models.CharField(max_length=500, blank=True)
+    approved_hours = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    units = models.DecimalField(max_digits=2, decimal_places=1, null=True, blank=True)
+    decision_note = models.CharField(max_length=500, blank=True)
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    review_note = models.CharField(max_length=500, blank=True)
+    reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-work_date", "-created_at"]
+        constraints = [models.UniqueConstraint(fields=["employee", "work_date"], condition=~Q(status__in=["REJECTED", "CANCELLED"]), name="one_holiday_work_per_day")]
+
+    @property
+    def running(self) -> bool:
+        return bool(self.intervals) and self.intervals[-1][1] is None
+
+
+class CompOffLedger(models.Model):
+    """Append-only. A GRANT comes from one credited holiday-work day; USE and RESTORE point at the grant they draw on and the leave."""
+
+    class Kind(models.TextChoices):
+        GRANT = "GRANT"
+        USE = "USE"
+        RESTORE = "RESTORE"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey("common.Organization", on_delete=models.PROTECT)
+    employee = models.ForeignKey("employees.Employee", on_delete=models.PROTECT, related_name="comp_off_ledger")
+    kind = models.CharField(max_length=8, choices=Kind.choices)
+    units = models.DecimalField(max_digits=3, decimal_places=1)  # GRANT/RESTORE positive, USE negative
+    holiday_work = models.ForeignKey(HolidayWork, null=True, blank=True, on_delete=models.PROTECT, related_name="ledger")
+    grant = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="draws")
+    leave = models.ForeignKey(LeaveRequest, null=True, blank=True, on_delete=models.PROTECT, related_name="comp_off_rows")
+    expires_on = models.DateField(null=True, blank=True)
+    hours = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    rule = models.JSONField(default=dict, blank=True)  # entitlement rule revision used for the grant
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        constraints = [models.UniqueConstraint(fields=["holiday_work"], condition=Q(kind="GRANT"), name="one_grant_per_holiday_work")]
