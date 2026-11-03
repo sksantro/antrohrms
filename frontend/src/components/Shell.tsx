@@ -2,7 +2,8 @@ import clsx from 'clsx'
 import { Bell, CheckCircle2, ChevronDown, CornerDownLeft, Info, LogOut, Menu, Search, X, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { NOTIFICATIONS, ROLE_LABEL, type Role } from '../lib/data'
+import { api, type NotificationDTO } from '../lib/api'
+import { ROLE_LABEL, type Role } from '../lib/data'
 import { useAuth } from '../lib/auth'
 import { useMe, useStore } from '../lib/store'
 import { homeFor, navFor } from './nav'
@@ -123,38 +124,59 @@ function RoleSwitcher() {
   )
 }
 
+const TONE_DOT = { info: 'bg-brand-500', success: 'bg-emerald-500', warning: 'bg-amber-500' }
+const ago = (iso: string) => {
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`
+}
+
+/** The bell: real notifications from the server, refreshed every minute and when the tab regains focus. */
 function Notifications() {
   const [open, setOpen] = useState(false)
-  const [read, setRead] = useState(false)
+  const [data, setData] = useState<{ unread: number; items: NotificationDTO[] }>({ unread: 0, items: [] })
+  const nav = useNavigate()
   useEscape(open, useCallback(() => setOpen(false), []))
-  const isUnread = (n: (typeof NOTIFICATIONS)[number]) => n.unread && !read
-  const unread = NOTIFICATIONS.filter(isUnread).length
+  const load = useCallback(() => { api.notifications().then(setData).catch(() => {}) }, [])
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 60_000)
+    window.addEventListener('focus', load)
+    return () => { clearInterval(t); window.removeEventListener('focus', load) }
+  }, [load])
+  const go = (n: NotificationDTO) => {
+    if (!n.read) api.markRead(n.id).then(load).catch(() => {})
+    setOpen(false)
+    if (n.link) nav(n.link)
+  }
   return (
     <div className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="relative size-10 rounded-xl grid place-items-center text-ink-500 hover:bg-ink-100 hover:text-ink-800" aria-label={`Notifications, ${unread} unread`}>
+      <button onClick={() => { setOpen((o) => !o); load() }} className="relative size-10 rounded-xl grid place-items-center text-ink-500 hover:bg-ink-100 hover:text-ink-800" aria-label={`Notifications, ${data.unread} unread`}>
         <Bell size={19} />
-        {unread > 0 && <span className="absolute top-2 right-2.5 size-2 rounded-full bg-rose-500 ring-2 ring-white" />}
+        {data.unread > 0 && <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10.5px] font-bold grid place-items-center ring-2 ring-white">{data.unread > 9 ? '9+' : data.unread}</span>}
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-2rem))] card shadow-lift z-40 animate-fade-up overflow-hidden">
+          <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-2rem))] card shadow-lift z-40 animate-fade-up overflow-hidden">
             <div className="px-4 py-3 border-b border-ink-100 flex justify-between items-center">
               <span className="font-semibold">Notifications</span>
-              {unread > 0
-                ? <button onClick={() => setRead(true)} className="text-[12px] text-brand-600 font-medium hover:text-brand-800">Mark all read</button>
+              {data.unread > 0
+                ? <button onClick={() => api.markRead().then(load)} className="text-[12px] text-brand-600 font-medium hover:text-brand-800">Mark all read</button>
                 : <span className="text-[12px] text-ink-400">All caught up</span>}
             </div>
-            {NOTIFICATIONS.map((n) => (
-              <div key={n.id} className="px-4 py-3 flex gap-3 hover:bg-ink-50 border-b border-ink-50 last:border-0">
-                <span className={clsx('mt-1.5 size-2 rounded-full shrink-0', isUnread(n) ? 'bg-brand-500' : 'bg-transparent')} />
-                <div>
-                  <div className={clsx('text-[13px]', isUnread(n) ? 'text-ink-900 font-medium' : 'text-ink-600')}>{n.title}</div>
-                  <div className="text-[11.5px] text-ink-400 mt-0.5">{n.time}</div>
-                </div>
-              </div>
-            ))}
-            {NOTIFICATIONS.length === 0 && <p className="px-4 py-6 text-center text-[13px] text-ink-400">No notifications yet.</p>}
+            <div className="max-h-[60vh] overflow-y-auto">
+              {data.items.map((n) => (
+                <button key={n.id} onClick={() => go(n)} className="w-full text-left px-4 py-3 flex gap-3 hover:bg-ink-50 border-b border-ink-50 last:border-0">
+                  <span className={clsx('mt-1.5 size-2 rounded-full shrink-0', n.read ? 'bg-transparent' : TONE_DOT[n.tone])} />
+                  <div className="min-w-0">
+                    <div className={clsx('text-[13px]', n.read ? 'text-ink-600' : 'text-ink-900 font-medium')}>{n.title}</div>
+                    {n.body && <div className="text-[12px] text-ink-500 mt-0.5 line-clamp-2">{n.body}</div>}
+                    <div className="text-[11.5px] text-ink-400 mt-0.5">{ago(n.created_at)}</div>
+                  </div>
+                </button>
+              ))}
+              {data.items.length === 0 && <p className="px-4 py-8 text-center text-[13px] text-ink-400">No notifications yet. Approvals and updates show up here.</p>}
+            </div>
           </div>
         </>
       )}
@@ -265,11 +287,11 @@ export default function Shell() {
         </div>
       )}
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-20 h-[76px] flex items-center gap-3 px-4 sm:px-8 bg-white/85 backdrop-blur-md border-b border-ink-100">
+        <header className="sticky top-0 z-20 h-16 sm:h-[76px] flex items-center gap-2 sm:gap-3 px-3 sm:px-8 bg-white/85 backdrop-blur-md border-b border-ink-100">
           <button className="lg:hidden btn-ghost !px-2" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu size={20} /></button>
-          <button onClick={() => setCmd(true)} className="flex items-center gap-3 h-11 px-4 rounded-2xl bg-ink-50 border border-transparent text-ink-400 text-[13.5px] w-full max-w-md hover:border-ink-200 hover:bg-white transition">
+          <button onClick={() => setCmd(true)} aria-label="Search" className="flex items-center justify-center sm:justify-start gap-3 h-11 w-11 sm:w-full sm:px-4 shrink-0 sm:shrink rounded-2xl bg-ink-50 border border-transparent text-ink-400 text-[13.5px] max-w-md hover:border-ink-200 hover:bg-white transition">
             <Search size={17} />
-            <span className="flex-1 text-left truncate">Search pages, e.g. attendance, profile…</span>
+            <span className="hidden sm:block flex-1 text-left truncate">Search pages, e.g. attendance, profile…</span>
             <kbd className="hidden sm:inline text-[11px] border border-ink-200 rounded px-1.5 py-0.5">Ctrl K</kbd>
           </button>
           <div className="flex-1" />

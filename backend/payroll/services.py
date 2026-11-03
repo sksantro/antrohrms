@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from attendance.services import policy
 from common.errors import BusinessRuleError, ConflictError
-from common.services import audit, queue_email
+from common.services import audit, notify, queue_email
 from employees.models import Employee
 
 from .models import PayrollRun, Payslip, SalaryVersion
@@ -160,6 +160,7 @@ def approve(run: PayrollRun, actor, request=None) -> PayrollRun:
     run.save(update_fields=["status", "approved_by", "approved_at"])
     audit(actor=actor, action="PAYROLL_APPROVED", entity=run, after={"period": f"{run.year}-{run.month:02d}", "payslips": len(slips)}, request=request)
     label = date(run.year, run.month, 1).strftime("%B %Y")
+    notify([s.employee.user for s in slips], f"Your payslip for {label} is ready", "", "/app/payslips", tone="success")
     for s in slips:
         queue_email(template_key="payslip", recipient=s.employee.official_email, subject=f"Your payslip for {label} is ready",
                     body=f"Your payslip for {label} is available in Antro HRMS → Payslips.", dedupe_key=f"payslip:{s.pk}", organization=run.organization)

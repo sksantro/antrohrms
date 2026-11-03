@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import connection
 from django.http import HttpResponseRedirect
 from rest_framework import generics, serializers
@@ -68,3 +70,26 @@ def legacy_admin_redirect(request, rest: str = ""):
     if request.META.get("QUERY_STRING"):
         target += "?" + request.META["QUERY_STRING"]
     return HttpResponseRedirect(target)
+
+
+class NotificationsView(APIView):
+    """Own notifications: GET the latest 30 with the unread count; POST {id} or {} to mark one or all read."""
+
+    def get(self, request):
+        from .models import Notification
+        qs = Notification.objects.filter(user=request.user)
+        rows = [{"id": str(n.id), "title": n.title, "body": n.body, "link": n.link, "tone": n.tone, "read": n.read_at is not None, "created_at": n.created_at} for n in qs[:30]]
+        return Response({"unread": qs.filter(read_at__isnull=True).count(), "items": rows})
+
+    def post(self, request):
+        from django.utils import timezone
+
+        from .models import Notification
+        qs = Notification.objects.filter(user=request.user, read_at__isnull=True)
+        if request.data.get("id"):
+            try:
+                qs = qs.filter(pk=uuid.UUID(str(request.data["id"])))
+            except ValueError:
+                return Response({"ok": False}, status=400)
+        qs.update(read_at=timezone.now())
+        return Response({"ok": True})

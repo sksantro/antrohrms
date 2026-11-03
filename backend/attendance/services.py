@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from common.errors import BusinessRuleError, ConflictError
 from common.models import OfficeSite, PolicyVersion
-from common.services import audit
+from common.services import audit, notify, super_admins
 from employees.models import Employee
 
 from .models import AttendanceCorrection, AttendanceDay, AttendanceEvent, Mode, PresenceCheck, Proof, WfhRequest
@@ -330,6 +330,7 @@ def _check_in_wfh(*, employee, actor, at, today, plan, emergency_reason, key, re
             raise BusinessRuleError("WFH_NOT_APPROVED", "You don't have approved work from home for today. Check in from the office, or use emergency WFH with a reason.")
         if req is None:
             req = WfhRequest.objects.create(organization=org, employee=employee, date=today, reason=emergency_reason, emergency=True, requested_by=actor)
+            notify(super_admins(org), f"Emergency work from home: {employee.display_name}", emergency_reason[:200], "/console/approvals", tone="warning")
         else:  # a normal request was pending; mark it as an emergency start with the reason given now
             req.emergency, req.reason = True, f"{req.reason}\nEmergency start: {emergency_reason}"
             req.save(update_fields=["emergency", "reason"])
@@ -525,6 +526,7 @@ def request_wfh(*, employee: Employee, actor, on: date, reason: str, request=Non
         raise BusinessRuleError("WFH_MONTHLY_LIMIT", f"You've used all {limit} work-from-home days for {on:%B}.")
     r = WfhRequest.objects.create(organization=org, employee=employee, date=on, reason=reason, requested_by=actor)
     audit(actor=actor, action="WFH_REQUESTED", entity=r, after={"date": str(on), "reason": reason}, request=request)
+    notify(super_admins(org), f"{employee.display_name} asked to work from home", f"{on:%a %d %b}: {reason[:120]}", "/console/approvals")
     return r
 
 
@@ -554,6 +556,7 @@ def decide_wfh(*, req: WfhRequest, actor, approve: bool, note: str, request=None
         d.proof_note = "Work from home" if approve else "Emergency work from home · rejected"
         d.save(update_fields=["proof_note", "updated_at"])
     audit(actor=actor, action=f"WFH_{req.status}", entity=req, after={"status": req.status}, reason=note, request=request, organization=req.organization)
+    notify(req.employee.user, f"Work from home on {req.date:%d %b} {'approved' if approve else 'rejected'}", note.strip(), "/app/attendance", tone="success" if approve else "warning")
     return req
 
 
@@ -567,6 +570,7 @@ def request_correction(*, day: AttendanceDay, actor, event_type: str, proposed_a
     c = AttendanceCorrection.objects.create(day=day, requested_by=actor, event_type=event_type, proposed_at=proposed_at, reason=reason.strip())
     _event(day, E.CORRECTION_REQUESTED, actor=actor, at=now(), note=f"{event_type} at {timezone.localtime(proposed_at):%H:%M}: {reason[:200]}")
     audit(actor=actor, action="ATTENDANCE_CORRECTION_REQUESTED", entity=c, after={"event_type": event_type, "proposed_at": proposed_at.isoformat()}, organization=day.organization)
+    notify(super_admins(day.organization), f"Attendance correction: {day.employee.display_name}", f"{day.work_date:%d %b}: {reason[:150]}", "/console/attendance")
     return c
 
 
@@ -593,6 +597,7 @@ def decide_correction(*, correction: AttendanceCorrection, actor, approve: bool,
     c.save()
     after = {"status": day.status, "work_seconds": day.work_seconds, "check_out_at": day.check_out_at.isoformat() if day.check_out_at else None}
     audit(actor=actor, action="ATTENDANCE_CORRECTION_" + c.status, entity=c, before=before, after=after, reason=note, request=request, organization=day.organization)
+    notify(day.employee.user, f"Correction for {day.work_date:%d %b} {'approved' if approve else 'rejected'}", note, "/app/attendance", tone="success" if approve else "warning")
     return c
 
 

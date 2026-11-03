@@ -62,3 +62,16 @@ def deliver(outbox_id) -> None:
             row.status, row.last_error = "FAILED", type(exc).__name__
             log.warning("Email delivery failed for outbox %s", row.pk)
         row.save(update_fields=["status", "sent_at", "attempts", "last_error"])
+
+
+def notify(users, title: str, body: str = "", link: str = "", tone: str = "info") -> None:
+    """In-app bell notification for one user or many (no email; pair with queue_email where the BRD asks for email)."""
+    from accounts.models import User
+    from .models import Notification
+    users = [users] if isinstance(users, User) else list(users)
+    Notification.objects.bulk_create([Notification(organization_id=u.organization_id, user=u, title=title[:160], body=body[:300], link=link, tone=tone) for u in users])
+
+
+def super_admins(org):
+    from accounts.models import Role, User
+    return User.objects.filter(organization=org, is_active=True, role_assignments__role=Role.SUPER_ADMIN).distinct()

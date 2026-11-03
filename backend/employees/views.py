@@ -237,3 +237,14 @@ class DesignationRuleView(APIView):
         audit(actor=request.user, action="DESIGNATION_ROLES_CHANGED", entity=request.user, before={"designation": d, "roles": before},
               after={"designation": d, "roles": roles, "people_updated": n}, request=request, organization=org)
         return Response({"designation": d, "roles": roles, "people_updated": n})
+
+
+class DirectoryView(APIView):
+    """Colleague directory for every signed-in employee: work details only (no phone, address, salary or status)."""
+
+    def get(self, request):
+        people = (Employee.objects.filter(organization=request.user.organization).exclude(status__in=["EXITED", "INACTIVE", "PREBOARDING"])
+                  .select_related("department").order_by("display_name"))
+        return Response({"people": [{"id": str(e.pk), "display_name": e.display_name, "designation": e.designation, "department": e.department.name,
+                                     "email": e.official_email, "manager_id": str(e.reporting_manager_id) if e.reporting_manager_id else None,
+                                     "joined": e.start_date} for e in people]})

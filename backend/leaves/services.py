@@ -6,10 +6,10 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
-from accounts.models import Role, User
+from accounts.models import User
 from attendance.services import WEEKDAYS, policy
 from common.errors import BusinessRuleError, ConflictError
-from common.services import audit, queue_email
+from common.services import audit, notify, queue_email, super_admins
 from employees.models import Employee
 
 from .models import Category, Holiday, HolidayCalendar, LeaveLedger, LeaveRequest, OptionalHolidayChoice
@@ -28,9 +28,11 @@ def _lock(employee: Employee) -> Employee:
     return Employee.objects.select_for_update().get(pk=employee.pk)
 
 
-def _notify_admins(org, subject: str, body: str, key: str):
-    for u in User.objects.filter(organization=org, is_active=True, role_assignments__role=Role.SUPER_ADMIN).distinct():
+def _notify_admins(org, subject: str, body: str, key: str, link: str = "/console/approvals"):
+    admins = list(super_admins(org))
+    for u in admins:
         queue_email(template_key="leave", recipient=u.email, subject=subject, body=body, dedupe_key=f"{key}:{u.pk}", organization=org)
+    notify(admins, subject, body.split(". ")[0][:300], link)
 
 
 # ---------- holiday calendar ----------
@@ -116,7 +118,7 @@ def submit_draft(cal: HolidayCalendar, actor, request=None) -> HolidayCalendar:
     cal.status = S.SUBMITTED
     cal.save(update_fields=["status"])
     audit(actor=actor, action="HOLIDAY_DRAFT_SUBMITTED", entity=cal, after={"year": cal.year, "revision": cal.revision}, request=request)
-    _notify_admins(cal.organization, f"Holiday calendar {cal.year} needs approval", f"Revision {cal.revision} of the {cal.year} holiday calendar is waiting for your approval in Antro HRMS.", f"cal-submit:{cal.pk}")
+    _notify_admins(cal.organization, f"Holiday calendar {cal.year} needs approval", f"Revision {cal.revision} of the {cal.year} holiday calendar is waiting for your approval in Antro HRMS.", f"cal-submit:{cal.pk}", "/hr/holidays")
     return cal
 
 
@@ -132,6 +134,10 @@ def decide_calendar(cal: HolidayCalendar, actor, approve: bool, note: str, reque
     cal.decision_note, cal.decided_by, cal.decided_at = note.strip(), actor, timezone.now()
     cal.save(update_fields=["status", "decision_note", "decided_by", "decided_at"])
     audit(actor=actor, action="HOLIDAY_CALENDAR_PUBLISHED" if approve else "HOLIDAY_CALENDAR_SENT_BACK", entity=cal, after={"year": cal.year, "revision": cal.revision}, reason=note, request=request)
+    if approve:
+        notify(User.objects.filter(organization=cal.organization, is_active=True), f"Holiday calendar {cal.year} is out", "Have a look and pick your optional holidays.", "/app/holidays", tone="success")
+    else:
+        notify(cal.created_by, f"Holiday calendar {cal.year} sent back", note.strip(), "/hr/holidays", tone="warning")
     return cal
 
 
@@ -327,6 +333,7 @@ def decide(r: LeaveRequest, actor, decision: str, note: str, request=None) -> Le
     r.save()
     audit(actor=actor, action=f"LEAVE_{r.status}", entity=r, reason=note, request=request)
     word = {"APPROVED": "approved", "REJECTED": "rejected", "NEEDS_CHANGES": "sent back for changes"}[r.status]
+    notify(r.employee.user, f"Your {r.get_category_display()} ({r.start:%d %b}) was {word}", note, "/app/leave", tone="success" if r.status == L.APPROVED else "warning")
     queue_email(template_key="leave", recipient=r.employee.official_email, subject=f"Your leave request was {word}",
                 body=f"Your {r.get_category_display()} request ({r.start:%d %b}–{r.end:%d %b}) was {word}." + (f"\nNote: {note}" if note else ""),
                 dedupe_key=f"leave-decision:{r.pk}:{r.status}", organization=r.organization)

@@ -19,6 +19,8 @@ import HolidaysAdmin from './pages/admin/HolidaysAdmin'
 import LeaveAdmin from './pages/admin/LeaveAdmin'
 import Payroll from './pages/admin/Payroll'
 import Policy from './pages/admin/Policy'
+import Reports from './pages/admin/Reports'
+import People from './pages/People'
 import { HrAssets, MyAssets } from './pages/Assets'
 import Attendance from './pages/Attendance'
 import Holidays from './pages/Holidays'
@@ -113,6 +115,8 @@ function AppRoutes() {
         <Route path="/console/employees" element={<Navigate to="/people" replace />} />
         <Route path="/console/audit" element={<Guard roles={['SUPER_ADMIN']}><Audit /></Guard>} />
         <Route path="/console/attendance" element={<Guard roles={['SUPER_ADMIN']}><AttendanceAdmin /></Guard>} />
+        <Route path="/console/reports" element={<Guard roles={['SUPER_ADMIN']}><Reports /></Guard>} />
+        <Route path="/app/people" element={<People />} />
         <Route path="/console/access" element={<Guard roles={['SUPER_ADMIN']}><AccessAdmin /></Guard>} />
         <Route path="/console/leave" element={<Guard roles={['SUPER_ADMIN']}><LeaveAdmin /></Guard>} />
         <Route path="/hr/holidays" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HolidaysAdmin /></Guard>} />

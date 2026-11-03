@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { ArrowRight, CalendarDays, CalendarPlus, ChevronRight, Clock, Coffee, FilePen, History, KeyRound, LogIn, LogOut, MapPin, Play, Quote, Receipt, UserCircle, UserPen, UtensilsCrossed, Zap } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import HomeGlance from '../components/HomeGlance'
 import TimeTracker from '../components/TimeTracker'
 import { Card, ProgressRing } from '../components/ui'
 import { api, type AttEventDTO, type EmployeeDTO, type HistoryDay } from '../lib/api'
@@ -94,6 +95,8 @@ export default function Home() {
         <Timeline events={att.data?.events} />
       </div>
 
+      <HomeGlance />
+
       <div className="grid lg:grid-cols-3 gap-6">
         <Card className="p-5 animate-fade-up" style={{ animationDelay: '140ms' }}>
           <Head icon={CalendarDays} title="This month" sub={fmtDate(`${month}-01`, { month: 'long', year: 'numeric' })} to="/app/attendance" link="View history" />
@@ -133,8 +136,8 @@ export default function Home() {
             <QuickAction to="/app/attendance" icon={History} label="Attendance history" />
             <QuickAction to="/app/profile" icon={UserPen} label="Update profile" />
             <QuickAction to="/app/profile" icon={KeyRound} label="Change password" />
-            <QuickAction icon={CalendarPlus} label="Apply leave" soon />
-            <QuickAction icon={Receipt} label="View payslip" soon />
+            <QuickAction to="/app/leave" icon={CalendarPlus} label="Apply leave" />
+            <QuickAction to="/app/payslips" icon={Receipt} label="View payslip" />
           </div>
         </Card>
       </div>

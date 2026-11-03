@@ -200,6 +200,19 @@ export interface AccessDTO {
   designations: { designation: string; roles: ServerRole[]; people: number }[]
 }
 
+export interface NotificationDTO { id: string; title: string; body: string; link: string; tone: 'info' | 'success' | 'warning'; read: boolean; created_at: string }
+export interface Colleague { id: string; display_name: string; designation: string; department: string; email: string; manager_id: string | null; joined: string }
+
+/** Download an Excel report (cookies carry the session). */
+export async function downloadReport(path: string, filename: string) {
+  const res = await fetch(API_BASE + path, { credentials: 'include' })
+  if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null))
+  const url = URL.createObjectURL(await res.blob())
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename })
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 const qs = (p: Record<string, string | undefined>) => {
   const s = new URLSearchParams(Object.entries(p).filter(([, v]) => v) as [string, string][]).toString()
   return s ? '?' + s : ''
@@ -269,4 +282,7 @@ export const api = {
   myPayslips: () => request<{ payslips: PayslipDTO[] }>('GET', '/payslips/me'),
   access: () => request<AccessDTO>('GET', '/admin/access'),
   setDesignationRoles: (designation: string, roles: ServerRole[]) => request<{ people_updated: number }>('PUT', '/admin/access/designation-rules', { designation, roles }),
+  notifications: () => request<{ unread: number; items: NotificationDTO[] }>('GET', '/notifications'),
+  markRead: (id?: string) => request<{ ok: boolean }>('POST', '/notifications', id ? { id } : {}),
+  directory: () => request<{ people: Colleague[] }>('GET', '/directory'),
 }
