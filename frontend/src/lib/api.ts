@@ -225,6 +225,27 @@ export interface LetterDTO {
   digest: string; released_at: string | null; created_at: string; template_version: number; editable: boolean
 }
 export interface PortalDTO { name: string; company: string; session_expires_at: string; items: { category: string; label: string; document: DocDTO | null }[] }
+export type AssetState = 'AVAILABLE' | 'ASSIGNED' | 'RETURN_PENDING' | 'RETURNED' | 'WRITTEN_OFF'
+export interface AllocationDTO {
+  id: string; asset: AssetDTO; employee: PersonRef; assigned_at: string; assign_note: string; ack_at: string | null; return_started_at: string | null
+  condition: '' | 'GOOD' | 'DAMAGED' | 'MISSING'; return_note: string; hr_ack_at: string | null; emp_ack_at: string | null; emp_agrees: boolean | null; emp_note: string
+  disputed: boolean; admin_decision: string; admin_note: string; closed_at: string | null
+}
+export interface AssetDTO {
+  id: string; category: string; category_name: string; make_model: string; tag: string; serial: string; purchase_ref: string; location: string; state: AssetState
+  owner: PersonRef | null; created_at: string; cost?: string | null; current?: AllocationDTO | null
+}
+export type ResignationStatus = 'SUBMITTED' | 'DISCUSSION_REQUESTED' | 'NOTICE_REVISION_REQUESTED' | 'ACCEPTED' | 'WITHDRAWN'
+export interface ResignationDTO {
+  id: string; employee: PersonRef; reason: string; submitted_on: string; proposed_last_day: string; notice_days: number; short_notice: boolean; letter: string; revision: number
+  has_own_letter: boolean; status: ResignationStatus; admin_note: string; accepted_last_day: string | null; decided_at: string | null; history: { revision: number; proposed_last_day: string; at: string }[]
+}
+export interface SettlementLine { code?: string; name: string; type: 'EARNING' | 'DEDUCTION'; amount: string; note: string; system?: boolean }
+export interface ExitDTO {
+  id: string; employee: PersonRef; last_working_day: string; checklist: CheckItem[]; status: 'IN_PROGRESS' | 'COMPLETED'; blockers: string[]; assets: AllocationDTO[]
+  fnf_status: 'NOT_STARTED' | 'DRAFT' | 'APPROVED'; letters: { id: string; kind: string; status: LetterStatus }[]; completed_at: string | null; can_complete: boolean
+  settlement?: { lines: SettlementLine[]; info: { monthly_gross: string | null; paid_days: number; month_days: number; el_available: number; warnings: string[] }; net: string; status: string; approved_at: string | null; digest: string }
+}
 export interface CompOffRule { active: boolean; full_day_hours: number; half_day_hours: number; expiry_days: number; review_note: string; updated_by?: string | null; effective_from?: string | null }
 export interface LeaveDTO {
   id: string; category: LeaveCat; category_name: string; start: string; end: string; half_day: boolean; days: string; reason: string; status: LeaveStatusDTO
@@ -372,6 +393,26 @@ export const api = {
   portalVerify: (token: string, code: string) => request<{ session: string }>('POST', `/candidate/portal/${token}/verify`, { code }),
   portal: (session: string) => request<PortalDTO>('GET', '/candidate/portal/session', undefined, { 'X-Portal-Session': session }),
   portalUpload: (session: string, category: string, file: File) => { const f = new FormData(); f.append('category', category); f.append('file', file); return request<PortalDTO>('POST', '/candidate/portal/session', f, { 'X-Portal-Session': session }) },
+  assets: (state?: string) => request<{ assets: AssetDTO[]; categories: Record<string, string> }>('GET', `/hr/assets${qs({ state })}`),
+  addAsset: (body: Record<string, string>) => request<AssetDTO>('POST', '/hr/assets', body),
+  assignAsset: (id: string, employee: string, note: string) => request<AllocationDTO>('POST', `/hr/assets/${id}/assign`, { employee, note }),
+  allocationHR: (id: string, action: 'return-start' | 'return', body: { condition?: string; note?: string } = {}) => request<AllocationDTO>('POST', `/hr/allocations/${id}/${action}`, body),
+  myAssets: () => request<{ allocations: AllocationDTO[]; personal: AssetDTO[] }>('GET', '/assets/me'),
+  myAllocation: (id: string, action: 'acknowledge' | 'confirm-return', body: { typed?: string; agrees?: boolean; note?: string }) => request<AllocationDTO>('POST', `/allocations/${id}/${action}`, body),
+  assetDisputes: () => request<{ disputes: AllocationDTO[] }>('GET', '/admin/allocations/disputes'),
+  resolveAllocation: (id: string, decision: 'ACCEPT' | 'WRITE_OFF' | 'RECOVERY_REVIEW', note: string) => request<AllocationDTO>('POST', `/admin/allocations/${id}/resolve`, { decision, note }),
+  assetState: (id: string, state: 'AVAILABLE' | 'WRITTEN_OFF', note: string) => request<AssetDTO>('POST', `/admin/assets/${id}/state`, { state, note }),
+  myResignation: () => request<{ resignation: ResignationDTO | null; notice_days: number; earliest_full_notice: string; can_submit: boolean }>('GET', '/resignation/me'),
+  resignationPreview: (last_day: string, reason: string) => request<{ letter: string; short_notice: boolean }>('GET', `/resignation/preview${qs({ last_day, reason })}`),
+  submitResignation: (f: FormData) => request<ResignationDTO>('POST', '/resignation/me', f),
+  resignationAction: (id: string, action: 'revise' | 'withdraw', body: { reason?: string; proposed_last_day?: string } = {}) => request<ResignationDTO>('POST', `/resignation/${id}/${action}`, body),
+  exits: () => request<{ resignations: ResignationDTO[]; exits: ExitDTO[] }>('GET', '/hr/exits'),
+  exitCheck: (id: string, key: string, done: boolean) => request<ExitDTO>('POST', `/hr/exits/${id}/checklist`, { key, done }),
+  completeExit: (id: string) => request<ExitDTO>('POST', `/hr/exits/${id}/complete`),
+  decideResignation: (id: string, decision: 'ACCEPT' | 'DISCUSSION' | 'NOTICE_REVISION', note: string, last_day?: string) => request<ResignationDTO>('POST', `/admin/resignations/${id}/decision`, { decision, note, last_day }),
+  settlement: (id: string) => request<ExitDTO>('GET', `/admin/exits/${id}/settlement`),
+  saveSettlement: (id: string, lines: SettlementLine[]) => request<ExitDTO>('PUT', `/admin/exits/${id}/settlement`, { lines }),
+  approveSettlement: (id: string) => request<ExitDTO>('POST', `/admin/exits/${id}/settlement/approve`),
   adminLeave: (status?: string) => request<{ requests: LeaveDTO[] }>('GET', `/admin/leave/requests${qs({ status })}`),
   decideLeave: (id: string, decision: 'APPROVE' | 'REJECT' | 'NEEDS_CHANGES', note: string) => request<LeaveDTO>('POST', `/admin/leave/requests/${id}/decision`, { decision, note }),
   employeeLeaveBalance: (id: string, year: number) => request<{ balances: Record<LeaveCat, LeaveBalance> }>('GET', `/admin/leave/balances/${id}?year=${year}`),

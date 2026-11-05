@@ -36,6 +36,9 @@ import Onboarding from './pages/hr/Onboarding'
 import Letters from './pages/hr/Letters'
 import Documents from './pages/Documents'
 import CandidateDocuments from './pages/CandidateDocuments'
+import Resignation from './pages/Resignation'
+import Exits from './pages/hr/Exits'
+import ExitsAdmin from './pages/admin/ExitsAdmin'
 import Leave from './pages/Leave'
 import Login from './pages/Login'
 import Payslips from './pages/Payslips'
@@ -54,12 +57,6 @@ function Guard({ roles, children }: { roles: ServerRole[]; children: ReactNode }
       <Link to={homeFor(role)} className="btn-primary mt-6">Go to my home</Link>
     </Card>
   )
-}
-
-// Sample-data previews are for the Super Admin only; everyone else sees "coming soon" instead of made-up numbers.
-function Preview({ children }: { children: ReactNode }) {
-  const { hasRole } = useAuth()
-  return hasRole('SUPER_ADMIN') ? <>{children}</> : <Planned />
 }
 
 function Planned() {
@@ -119,15 +116,18 @@ function AppRoutes() {
         <Route path="/app/holiday-work" element={<HolidayWork />} />
         <Route path="/app/interviews" element={<Interviews />} />
         <Route path="/app/documents" element={<Documents />} />
+        <Route path="/app/resignation" element={<Resignation />} />
+        <Route path="/hr/exits" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Exits /></Guard>} />
+        <Route path="/console/exits" element={<Guard roles={['SUPER_ADMIN']}><ExitsAdmin /></Guard>} />
         <Route path="/hr/onboarding" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Onboarding /></Guard>} />
         <Route path="/hr/letters" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Letters /></Guard>} />
         <Route path="/console/letters" element={<Guard roles={['SUPER_ADMIN']}><LettersAdmin /></Guard>} />
         <Route path="/app/payslips" element={<Payslips />} />
-        <Route path="/app/assets" element={<Preview><MyAssets /></Preview>} />
+        <Route path="/app/assets" element={<MyAssets />} />
         <Route path="/app/profile" element={<Profile />} />
         <Route path="/people" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Directory /></Guard>} />
         <Route path="/hr/recruitment" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Recruitment /></Guard>} />
-        <Route path="/hr/assets" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Preview><HrAssets /></Preview></Guard>} />
+        <Route path="/hr/assets" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HrAssets /></Guard>} />
         <Route path="/console" element={<Guard roles={['SUPER_ADMIN']}><CommandCenter /></Guard>} />
         <Route path="/console/approvals" element={<Guard roles={['SUPER_ADMIN']}><Approvals /></Guard>} />
         <Route path="/console/employees" element={<Navigate to="/people" replace />} />
@@ -142,7 +142,7 @@ function AppRoutes() {
         <Route path="/hr/holidays" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HolidaysAdmin /></Guard>} />
         <Route path="/console/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />
         <Route path="/console/settings" element={<Guard roles={['SUPER_ADMIN']}><Policy /></Guard>} />
-        {['/app/appraisal', '/app/resignation', '/hr/exits', '/console/appraisals', '/manager/reviews'].map((p) => (
+        {['/app/appraisal', '/console/appraisals', '/manager/reviews'].map((p) => (
           <Route key={p} path={p} element={<Planned />} />
         ))}
         <Route path="*" element={<Home404 />} />
