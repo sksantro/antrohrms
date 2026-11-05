@@ -28,6 +28,9 @@ import Holidays from './pages/Holidays'
 import HolidayWork from './pages/HolidayWork'
 import Home from './pages/Home'
 import Recruitment from './pages/hr/Recruitment'
+import Interviews from './pages/Interviews'
+import CandidateOffer from './pages/CandidateOffer'
+import Hiring from './pages/admin/Hiring'
 import Leave from './pages/Leave'
 import Login from './pages/Login'
 import Payslips from './pages/Payslips'
@@ -100,6 +103,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/activate" element={<Activate />} />
+      <Route path="/candidate/offer/:token" element={<CandidateOffer />} />
       <Route element={<RequireAuth />}>
       <Route element={<Shell />}>
         <Route path="/app/home" element={<Home />} />
@@ -107,11 +111,12 @@ function AppRoutes() {
         <Route path="/app/leave" element={<Leave />} />
         <Route path="/app/holidays" element={<Holidays />} />
         <Route path="/app/holiday-work" element={<HolidayWork />} />
+        <Route path="/app/interviews" element={<Interviews />} />
         <Route path="/app/payslips" element={<Payslips />} />
         <Route path="/app/assets" element={<Preview><MyAssets /></Preview>} />
         <Route path="/app/profile" element={<Profile />} />
         <Route path="/people" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Directory /></Guard>} />
-        <Route path="/hr/recruitment" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Preview><Recruitment /></Preview></Guard>} />
+        <Route path="/hr/recruitment" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Recruitment /></Guard>} />
         <Route path="/hr/assets" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Preview><HrAssets /></Preview></Guard>} />
         <Route path="/console" element={<Guard roles={['SUPER_ADMIN']}><CommandCenter /></Guard>} />
         <Route path="/console/approvals" element={<Guard roles={['SUPER_ADMIN']}><Approvals /></Guard>} />
@@ -122,6 +127,7 @@ function AppRoutes() {
         <Route path="/app/people" element={<People />} />
         <Route path="/console/access" element={<Guard roles={['SUPER_ADMIN']}><AccessAdmin /></Guard>} />
         <Route path="/console/leave" element={<Guard roles={['SUPER_ADMIN']}><LeaveAdmin /></Guard>} />
+        <Route path="/console/hiring" element={<Guard roles={['SUPER_ADMIN']}><Hiring /></Guard>} />
         <Route path="/console/holiday-work" element={<Guard roles={['SUPER_ADMIN']}><HolidayWorkAdmin /></Guard>} />
         <Route path="/hr/holidays" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HolidaysAdmin /></Guard>} />
         <Route path="/console/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />

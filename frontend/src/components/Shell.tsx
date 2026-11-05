@@ -25,8 +25,10 @@ export function Logo({ light, size = 'md' }: { light?: boolean; size?: 'md' | 'l
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { role, approvals, now } = useStore()
-  const previews = useAuth().hasRole('SUPER_ADMIN')
-  const sections = navFor(role, previews)
+  const auth = useAuth()
+  const previews = auth.hasRole('SUPER_ADMIN')
+  const interviewer = !!auth.me?.employee?.is_interviewer
+  const sections = navFor(role, previews, interviewer)
   return (
     <nav className="flex flex-col h-full" aria-label="Main">
       <div className="px-6 h-[76px] flex items-center"><Logo /></div>
@@ -186,13 +188,15 @@ function Notifications() {
 
 function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { role } = useStore()
-  const previews = useAuth().hasRole('SUPER_ADMIN')
+  const auth = useAuth()
+  const previews = auth.hasRole('SUPER_ADMIN')
+  const interviewer = !!auth.me?.employee?.is_interviewer
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [i, setI] = useState(0)
   const dialog = useDialog(open)
   const list = useRef<HTMLUListElement>(null)
-  const items = useMemo(() => navFor(role, previews).flatMap((s) => s.items.map((it) => ({ ...it, section: s.title })))
+  const items = useMemo(() => navFor(role, previews, interviewer).flatMap((s) => s.items.map((it) => ({ ...it, section: s.title })))
     .filter((it, idx, all) => all.findIndex((x) => x.to === it.to) === idx)
     .filter((it) => `${it.label} ${it.section}`.toLowerCase().includes(q.trim().toLowerCase())), [role, q, previews])
   useEffect(() => { if (open) { setQ(''); setI(0) } }, [open])
@@ -264,8 +268,10 @@ export default function Shell() {
   }, [])
   useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
   const { role } = useStore()
-  const previews = useAuth().hasRole('SUPER_ADMIN')
-  const page = navFor(role, previews).flatMap((s) => s.items).find((it) => it.to === loc.pathname)
+  const auth = useAuth()
+  const previews = auth.hasRole('SUPER_ADMIN')
+  const interviewer = !!auth.me?.employee?.is_interviewer
+  const page = navFor(role, previews, interviewer).flatMap((s) => s.items).find((it) => it.to === loc.pathname)
   useEffect(() => { document.title = page ? `${page.label} · Antro HRMS` : 'Antro HRMS' }, [page])
   const closeNav = useCallback(() => setMobileNav(false), [])
   useEscape(mobileNav, closeNav)

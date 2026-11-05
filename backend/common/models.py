@@ -118,3 +118,17 @@ class Notification(models.Model):
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["user", "read_at"])]
+
+
+class StoredFile(models.Model):
+    """A private upload kept in the database (no public path). Served only through views that check scope."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT)
+    name = models.CharField(max_length=200)
+    mime = models.CharField(max_length=100)
+    size = models.PositiveIntegerField()
+    sha256 = models.CharField(max_length=64)
+    data = models.BinaryField()
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)

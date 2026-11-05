@@ -16,6 +16,7 @@ export interface Me {
     start_date: string
     probation_end: string
     has_direct_reports: boolean
+    is_interviewer?: boolean
   }
 }
 
@@ -177,6 +178,34 @@ export interface HolidayWorkDTO {
   decision_note: string; review_note: string; created_at: string; can_work: boolean; cancellable: boolean
   employee?: { id: string; display_name: string; employee_code: string | null; designation: string }
 }
+export type CandidateStage = 'NEW' | 'INTERVIEWING' | 'SELECTION_PENDING' | 'SELECTED' | 'REJECTED' | 'OFFERED' | 'OFFER_ACCEPTED' | 'OFFER_DECLINED' | 'WITHDRAWN' | 'JOINED'
+export type OfferStatus = 'DRAFT' | 'PENDING_ADMIN' | 'SENT' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED' | 'WITHDRAWN'
+export type Evaluation = 'GOOD' | 'AVERAGE' | 'NEEDS_IMPROVEMENT' | 'NOT_EVALUATED'
+export type Overall = 'RECOMMENDED' | 'NOT_RECOMMENDED' | 'NEXT_ROUND'
+export interface PersonRef { id: string; display_name: string; designation: string }
+export interface Question { key: string; text: string; weight: number; evidence_required: boolean }
+export interface Answer { key: string; rating: number | null; evaluation: Evaluation; remark: string }
+export interface RoundDTO {
+  id: string; kind: 'TECHNICAL' | 'MANAGER' | 'CULTURE' | 'HR'; kind_name: string; scheduled_at: string; duration_min: number; mode: 'ONLINE' | 'ONSITE'
+  meeting_url: string; location: string; status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'; reschedules: number; interviewers: PersonRef[]; template: { code: string; version: number; name: string }
+}
+export interface FeedbackDTO { id: string; round_id: string; interviewer: PersonRef; revision: number; answers: Answer[]; overall: Overall | ''; comments: string; score: number | null; submitted_at: string | null; amend_reason: string }
+export interface OfferDTO {
+  id: string; status: OfferStatus; designation: string; department: { id: string; name: string }; employment_type: string; joining_date: string; work_location: string; terms: string
+  reporting_manager: PersonRef | null; admin_note: string; expires_at: string | null; approved_at: string | null; responded_at: string | null; decline_reason: string; digest: string; letter: string
+  monthly_gross?: string | null
+}
+export interface CandidateDTO {
+  id: string; name: string; email: string; phone: string; role_applied: string; template_code: string; department: { id: string; name: string } | null; source: string
+  stage: CandidateStage; has_resume: boolean; decision_note: string; created_at: string; updated_at: string; offer_status: OfferStatus | null
+  notes?: string; rounds?: RoundDTO[]; feedback?: FeedbackDTO[]; avg_score?: number | null; offer?: OfferDTO | null
+}
+export interface AssignedRound extends RoundDTO {
+  candidate: { id: string; name: string; role_applied: string; has_resume: boolean; stage: CandidateStage }; my_feedback: FeedbackDTO | null; questions: Question[]; can_submit: boolean
+}
+export interface RoundIn { kind: RoundDTO['kind']; scheduled_at: string; duration_min: number; mode: RoundDTO['mode']; meeting_url: string; location: string; interviewers: string[] }
+export interface OfferIn { designation: string; department: string; employment_type: string; joining_date: string; reporting_manager: string | null; work_location: string; terms: string }
+export interface PublicOffer { status: OfferStatus; company: string; candidate: string; designation: string; joining_date: string; expires_at: string | null; letter: string; digest: string; responded_at: string | null }
 export interface CompOffRule { active: boolean; full_day_hours: number; half_day_hours: number; expiry_days: number; review_note: string; updated_by?: string | null; effective_from?: string | null }
 export interface LeaveDTO {
   id: string; category: LeaveCat; category_name: string; start: string; end: string; half_day: boolean; days: string; reason: string; status: LeaveStatusDTO
@@ -216,7 +245,8 @@ export async function downloadReport(path: string, filename: string) {
   const res = await fetch(API_BASE + path, { credentials: 'include' })
   if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null))
   const url = URL.createObjectURL(await res.blob())
-  const a = Object.assign(document.createElement('a'), { href: url, download: filename })
+  const served = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1]
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename.includes('.') || !served ? filename : `${filename}.${served.split('.').pop()}` })
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
@@ -286,6 +316,23 @@ export const api = {
   decideHolidayWork: (id: string, decision: 'APPROVE' | 'REJECT' | 'CREDIT' | 'NO_CREDIT', note: string, hours?: number) => request<HolidayWorkDTO>('POST', `/admin/holiday-work/${id}/decision`, { decision, note, hours: hours ?? null }),
   compOffRule: () => request<CompOffRule>('GET', '/admin/holiday-work/rule'),
   setCompOffRule: (body: CompOffRule) => request<CompOffRule>('PUT', '/admin/holiday-work/rule', body),
+  candidates: (p: { stage?: string; q?: string } = {}) => request<{ candidates: CandidateDTO[] }>('GET', `/hr/candidates${qs(p)}`),
+  candidate: (id: string) => request<CandidateDTO>('GET', `/hr/candidates/${id}`),
+  addCandidate: (f: FormData) => request<CandidateDTO>('POST', '/hr/candidates', f),
+  updateCandidate: (id: string, f: FormData) => request<CandidateDTO>('PATCH', `/hr/candidates/${id}`, f),
+  withdrawCandidate: (id: string, note: string) => request<CandidateDTO>('POST', `/hr/candidates/${id}/withdraw`, { note }),
+  scheduleRound: (cid: string, body: RoundIn) => request<RoundDTO>('POST', `/hr/candidates/${cid}/interviews`, body),
+  rescheduleRound: (id: string, body: RoundIn) => request<RoundDTO>('PUT', `/hr/interviews/${id}`, body),
+  cancelRound: (id: string) => request<RoundDTO>('POST', `/hr/interviews/${id}/cancel`),
+  draftOffer: (cid: string, body: OfferIn) => request<OfferDTO>('POST', `/hr/candidates/${cid}/offer`, body),
+  offerAction: (id: string, action: 'submit' | 'withdraw', note = '') => request<OfferDTO>('POST', `/hr/offers/${id}/${action}`, { note }),
+  assignedInterviews: () => request<{ rounds: AssignedRound[] }>('GET', '/interviews/assigned'),
+  saveFeedback: (rid: string, body: { answers: Answer[]; overall: string; comments: string; submit: boolean; amend_reason?: string }) => request<FeedbackDTO>('POST', `/interviews/${rid}/feedback`, body),
+  hiring: () => request<{ selection: CandidateDTO[]; offers: CandidateDTO[] }>('GET', '/admin/hiring'),
+  decideCandidate: (id: string, decision: 'SELECT' | 'REJECT', note: string) => request<CandidateDTO>('POST', `/admin/candidates/${id}/decision`, { decision, note }),
+  decideOffer: (id: string, decision: 'APPROVE' | 'NEEDS_CHANGES', note: string, monthly_gross?: string) => request<OfferDTO>('POST', `/admin/offers/${id}/decision`, { decision, note, monthly_gross: monthly_gross || null }),
+  publicOffer: (token: string) => request<PublicOffer>('GET', `/candidate/offers/${token}`),
+  respondOffer: (token: string, body: { decision: 'ACCEPT' | 'DECLINE'; signed_name?: string; consent?: boolean; reason?: string }) => request<PublicOffer>('POST', `/candidate/offers/${token}`, body),
   adminLeave: (status?: string) => request<{ requests: LeaveDTO[] }>('GET', `/admin/leave/requests${qs({ status })}`),
   decideLeave: (id: string, decision: 'APPROVE' | 'REJECT' | 'NEEDS_CHANGES', note: string) => request<LeaveDTO>('POST', `/admin/leave/requests/${id}/decision`, { decision, note }),
   employeeLeaveBalance: (id: string, year: number) => request<{ balances: Record<LeaveCat, LeaveBalance> }>('GET', `/admin/leave/balances/${id}?year=${year}`),

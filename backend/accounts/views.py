@@ -33,6 +33,7 @@ def me_payload(user) -> dict:
             "start_date": emp.start_date.isoformat(),
             "probation_end": emp.probation_end.isoformat(),
             "has_direct_reports": emp.direct_reports.exists(),
+            "is_interviewer": emp.interview_rounds.exists(),
         },
     }
 

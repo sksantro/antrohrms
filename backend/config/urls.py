@@ -40,6 +40,7 @@ api = [
     path("admin/policies", common.PolicyListView.as_view()),
     path("", include("attendance.urls")),
     path("", include("leaves.urls")),
+    path("", include("recruitment.urls")),
     path("", include(router.urls)),
 ]
 

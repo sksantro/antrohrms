@@ -1,11 +1,11 @@
-import { CalendarClock, FileSpreadsheet, KeyRound,
+import { CalendarClock, ClipboardCheck as Scorecard, FileSpreadsheet, KeyRound, UserCheck,
   BadgeCheck, Briefcase, CalendarDays, ClipboardCheck, Clock, FileSignature, FileText, Gauge, Inbox, LayoutDashboard,
   Laptop, LogOut, Receipt, ScrollText, Settings2, Sparkles, Star, Sun, UserCircle, UserPlus, Users, Wallet, type LucideIcon,
 } from 'lucide-react'
 import type { Role } from '../lib/data'
 
 // planned: not built yet. sample: a preview on sample data that only the Super Admin sees; for everyone else it's planned.
-export interface NavItem { to: string; label: string; icon: LucideIcon; badge?: string; planned?: string; sample?: string }
+export interface NavItem { to: string; label: string; icon: LucideIcon; badge?: string; planned?: string; sample?: string; interviewer?: boolean }
 export interface NavSection { title: string; items: NavItem[] }
 
 const SELF: NavSection = {
@@ -21,6 +21,7 @@ const SELF: NavSection = {
     { to: '/app/assets', label: 'Assets', icon: Laptop, sample: 'P4' },
     { to: '/app/appraisal', label: 'Appraisal', icon: Star, planned: 'P5' },
     { to: '/app/resignation', label: 'Resignation', icon: LogOut, planned: 'P4' },
+    { to: '/app/interviews', label: 'My Interviews', icon: Scorecard, interviewer: true },
     { to: '/app/people', label: 'People', icon: Users },
     { to: '/app/profile', label: 'My Profile', icon: UserCircle },
   ],
@@ -31,7 +32,7 @@ const HR: NavSection = {
   items: [
     { to: '/people', label: 'People', icon: Users },
     { to: '/hr/holidays', label: 'Holiday Calendar', icon: Sun },
-    { to: '/hr/recruitment', label: 'Recruitment', icon: Briefcase, sample: 'P3' },
+    { to: '/hr/recruitment', label: 'Recruitment', icon: Briefcase },
     { to: '/hr/onboarding', label: 'Onboarding', icon: UserPlus, planned: 'P3' },
     { to: '/hr/letters', label: 'Letter Drafts', icon: FileSignature, planned: 'P3' },
     { to: '/hr/assets', label: 'Assets', icon: Laptop, sample: 'P4' },
@@ -46,6 +47,7 @@ const ADMIN: NavSection = {
     { to: '/console/approvals', label: 'Approval Inbox', icon: Inbox },
     { to: '/people', label: 'Employee Directory', icon: Users },
     { to: '/console/attendance', label: 'Attendance', icon: Clock },
+    { to: '/console/hiring', label: 'Hiring Decisions', icon: UserCheck },
     { to: '/console/leave', label: 'Leave', icon: CalendarDays },
     { to: '/hr/holidays', label: 'Holidays', icon: Sun },
     { to: '/console/holiday-work', label: 'Holiday Work', icon: CalendarClock },
@@ -63,7 +65,7 @@ const MANAGER: NavSection = {
   items: [{ to: '/manager/reviews', label: 'Team Reviews', icon: BadgeCheck, planned: 'P5' }],
 }
 
-export function navFor(role: Role, previews = false): NavSection[] {
+export function navFor(role: Role, previews = false, interviewer = false): NavSection[] {
   const sections = (() => {
     switch (role) {
       case 'SUPER_ADMIN': return [ADMIN, { ...HR, items: HR.items.filter((i) => i.to !== '/people') }, SELF]
@@ -72,8 +74,9 @@ export function navFor(role: Role, previews = false): NavSection[] {
       default: return [SELF]
     }
   })()
-  if (previews) return sections
-  return sections.map((s) => ({ ...s, items: s.items.map((i) => (i.sample ? { ...i, planned: i.sample } : i)) }))
+  const visible = sections.map((s) => ({ ...s, items: s.items.filter((i) => !i.interviewer || interviewer) }))
+  if (previews) return visible
+  return visible.map((s) => ({ ...s, items: s.items.map((i) => (i.sample ? { ...i, planned: i.sample } : i)) }))
 }
 
 export const homeFor = (role: Role) => (role === 'SUPER_ADMIN' ? '/console' : '/app/home')
