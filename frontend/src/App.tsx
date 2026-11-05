@@ -31,6 +31,11 @@ import Recruitment from './pages/hr/Recruitment'
 import Interviews from './pages/Interviews'
 import CandidateOffer from './pages/CandidateOffer'
 import Hiring from './pages/admin/Hiring'
+import LettersAdmin from './pages/admin/LettersAdmin'
+import Onboarding from './pages/hr/Onboarding'
+import Letters from './pages/hr/Letters'
+import Documents from './pages/Documents'
+import CandidateDocuments from './pages/CandidateDocuments'
 import Leave from './pages/Leave'
 import Login from './pages/Login'
 import Payslips from './pages/Payslips'
@@ -104,6 +109,7 @@ function AppRoutes() {
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/activate" element={<Activate />} />
       <Route path="/candidate/offer/:token" element={<CandidateOffer />} />
+      <Route path="/candidate/documents/:token" element={<CandidateDocuments />} />
       <Route element={<RequireAuth />}>
       <Route element={<Shell />}>
         <Route path="/app/home" element={<Home />} />
@@ -112,6 +118,10 @@ function AppRoutes() {
         <Route path="/app/holidays" element={<Holidays />} />
         <Route path="/app/holiday-work" element={<HolidayWork />} />
         <Route path="/app/interviews" element={<Interviews />} />
+        <Route path="/app/documents" element={<Documents />} />
+        <Route path="/hr/onboarding" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Onboarding /></Guard>} />
+        <Route path="/hr/letters" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><Letters /></Guard>} />
+        <Route path="/console/letters" element={<Guard roles={['SUPER_ADMIN']}><LettersAdmin /></Guard>} />
         <Route path="/app/payslips" element={<Payslips />} />
         <Route path="/app/assets" element={<Preview><MyAssets /></Preview>} />
         <Route path="/app/profile" element={<Profile />} />
@@ -132,7 +142,7 @@ function AppRoutes() {
         <Route path="/hr/holidays" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HolidaysAdmin /></Guard>} />
         <Route path="/console/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />
         <Route path="/console/settings" element={<Guard roles={['SUPER_ADMIN']}><Policy /></Guard>} />
-        {['/app/documents', '/app/appraisal', '/app/resignation', '/hr/onboarding', '/hr/letters', '/hr/exits', '/console/appraisals', '/manager/reviews'].map((p) => (
+        {['/app/appraisal', '/app/resignation', '/hr/exits', '/console/appraisals', '/manager/reviews'].map((p) => (
           <Route key={p} path={p} element={<Planned />} />
         ))}
         <Route path="*" element={<Home404 />} />

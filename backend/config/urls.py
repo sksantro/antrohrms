@@ -41,6 +41,7 @@ api = [
     path("", include("attendance.urls")),
     path("", include("leaves.urls")),
     path("", include("recruitment.urls")),
+    path("", include("onboarding.urls")),
     path("", include(router.urls)),
 ]
 

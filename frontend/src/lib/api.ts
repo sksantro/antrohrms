@@ -206,6 +206,25 @@ export interface AssignedRound extends RoundDTO {
 export interface RoundIn { kind: RoundDTO['kind']; scheduled_at: string; duration_min: number; mode: RoundDTO['mode']; meeting_url: string; location: string; interviewers: string[] }
 export interface OfferIn { designation: string; department: string; employment_type: string; joining_date: string; reporting_manager: string | null; work_location: string; terms: string }
 export interface PublicOffer { status: OfferStatus; company: string; candidate: string; designation: string; joining_date: string; expires_at: string | null; letter: string; digest: string; responded_at: string | null }
+export type DocStatus = 'UPLOADED' | 'RECEIVED' | 'NEEDS_REUPLOAD' | 'VERIFIED'
+export interface DocDTO { id: string; category: string; label: string; status: DocStatus; hr_note: string; file_name: string; size: number; uploaded_at: string; reviewed_at: string | null }
+export interface CheckItem { key: string; label: string; done: boolean; by?: string; at?: string }
+export interface HireDTO {
+  id: string; name: string; email: string; phone: string; stage: CandidateStage; offer: { designation: string; department: string; joining_date: string } | null
+  request: { categories: string[]; labels: string[]; link_expires_at: string; link_used: boolean; open: boolean } | null
+  documents: DocDTO[]; missing: string[]; checklist: CheckItem[]; joined_at: string | null; employee_id: string | null; employee_code?: string
+}
+export interface ProbationDue { id: string; display_name: string; designation: string; department: string; start_date: string; probation_end: string }
+export interface ProbationReviewDTO {
+  id: string; employee: PersonRef; due_on: string; recommendation: 'CONFIRM' | 'EXTEND'; extend_months: number; hr_note: string
+  status: 'PENDING_ADMIN' | 'CONFIRMED' | 'EXTENDED' | 'CANCELLED'; admin_note: string; decided_at: string | null; created_at: string
+}
+export type LetterStatus = 'DRAFT' | 'PENDING_ADMIN' | 'RELEASED' | 'REJECTED'
+export interface LetterDTO {
+  id: string; kind: string; title: string; status: LetterStatus; employee: { id: string; display_name: string }; note: string; admin_note: string; content: string
+  digest: string; released_at: string | null; created_at: string; template_version: number; editable: boolean
+}
+export interface PortalDTO { name: string; company: string; session_expires_at: string; items: { category: string; label: string; document: DocDTO | null }[] }
 export interface CompOffRule { active: boolean; full_day_hours: number; half_day_hours: number; expiry_days: number; review_note: string; updated_by?: string | null; effective_from?: string | null }
 export interface LeaveDTO {
   id: string; category: LeaveCat; category_name: string; start: string; end: string; half_day: boolean; days: string; reason: string; status: LeaveStatusDTO
@@ -333,6 +352,26 @@ export const api = {
   decideOffer: (id: string, decision: 'APPROVE' | 'NEEDS_CHANGES', note: string, monthly_gross?: string) => request<OfferDTO>('POST', `/admin/offers/${id}/decision`, { decision, note, monthly_gross: monthly_gross || null }),
   publicOffer: (token: string) => request<PublicOffer>('GET', `/candidate/offers/${token}`),
   respondOffer: (token: string, body: { decision: 'ACCEPT' | 'DECLINE'; signed_name?: string; consent?: boolean; reason?: string }) => request<PublicOffer>('POST', `/candidate/offers/${token}`, body),
+  onboarding: () => request<{ hires: HireDTO[]; categories: Record<string, string>; probation_due: ProbationDue[]; probation_reviews: ProbationReviewDTO[] }>('GET', '/hr/onboarding'),
+  requestDocs: (cid: string, categories: string[]) => request<HireDTO>('POST', `/hr/onboarding/${cid}/request-documents`, { categories }),
+  reviewDoc: (id: string, status: DocStatus, note = '') => request<DocDTO>('POST', `/hr/documents/${id}/review`, { status, note }),
+  setCheck: (cid: string, key: string, done: boolean) => request<HireDTO>('POST', `/hr/onboarding/${cid}/checklist`, { key, done }),
+  markJoined: (cid: string, official_email: string) => request<HireDTO>('POST', `/hr/onboarding/${cid}/join`, { official_email }),
+  startProbationReview: (empId: string, body: { recommendation: 'CONFIRM' | 'EXTEND'; note: string; extend_months?: number }) => request<ProbationReviewDTO>('POST', `/hr/probation/${empId}/review`, body),
+  decideProbation: (id: string, body: { decision: 'CONFIRM' | 'EXTEND'; note: string; extend_months?: number }) => request<ProbationReviewDTO>('POST', `/admin/probation/${id}/decision`, body),
+  letters: (status?: string) => request<{ letters: LetterDTO[]; kinds: Record<string, string> }>('GET', `/hr/letters${qs({ status })}`),
+  draftLetter: (body: Record<string, string>) => request<LetterDTO>('POST', '/hr/letters', body),
+  updateLetter: (id: string, body: Record<string, string>) => request<LetterDTO>('PUT', `/letters/${id}`, body),
+  submitLetter: (id: string) => request<LetterDTO>('POST', `/hr/letters/${id}/submit`),
+  adminLetters: () => request<{ letters: LetterDTO[]; probation: ProbationReviewDTO[] }>('GET', '/admin/letters'),
+  decideLetter: (id: string, decision: 'APPROVE' | 'NEEDS_CHANGES' | 'REJECT', note: string) => request<LetterDTO>('POST', `/admin/letters/${id}/decision`, { decision, note }),
+  letterTemplates: () => request<{ templates: { kind: string; title: string; version: number; body: string }[]; placeholders: string[]; sensitive: string[] }>('GET', '/admin/letter-templates'),
+  saveTemplate: (kind: string, body: string) => request<{ kind: string; version: number; body: string }>('PUT', '/admin/letter-templates', { kind, body }),
+  myDocuments: () => request<{ letters: LetterDTO[]; documents: DocDTO[] }>('GET', '/documents/me'),
+  portalOtp: (token: string) => request<{ sent_to: string; expires_in_min: number }>('POST', `/candidate/portal/${token}/otp`),
+  portalVerify: (token: string, code: string) => request<{ session: string }>('POST', `/candidate/portal/${token}/verify`, { code }),
+  portal: (session: string) => request<PortalDTO>('GET', '/candidate/portal/session', undefined, { 'X-Portal-Session': session }),
+  portalUpload: (session: string, category: string, file: File) => { const f = new FormData(); f.append('category', category); f.append('file', file); return request<PortalDTO>('POST', '/candidate/portal/session', f, { 'X-Portal-Session': session }) },
   adminLeave: (status?: string) => request<{ requests: LeaveDTO[] }>('GET', `/admin/leave/requests${qs({ status })}`),
   decideLeave: (id: string, decision: 'APPROVE' | 'REJECT' | 'NEEDS_CHANGES', note: string) => request<LeaveDTO>('POST', `/admin/leave/requests/${id}/decision`, { decision, note }),
   employeeLeaveBalance: (id: string, year: number) => request<{ balances: Record<LeaveCat, LeaveBalance> }>('GET', `/admin/leave/balances/${id}?year=${year}`),

@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { CalendarCheck, CalendarClock, CalendarHeart, UserCheck, Check, ChevronRight, Clock, House, Inbox, X } from 'lucide-react'
+import { CalendarCheck, CalendarClock, CalendarHeart, FileSignature, UserCheck, Check, ChevronRight, Clock, House, Inbox, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Avatar, Card, CardHeader, PageHeader, Pill } from '../../components/ui'
@@ -17,6 +17,7 @@ export default function Approvals() {
   const leave = useApi(() => api.adminLeave('SUBMITTED'), [])
   const att = useApi(() => api.exceptions(), [])
   const hire = useApi(() => api.hiring(), [])
+  const lets = useApi(() => api.adminLetters(), [])
   const hw = useApi(() => api.adminHolidayWork('REQUESTED,AWAITING_REVIEW'), [])
   const cal = useApi(() => Promise.all([api.calendars(year), api.calendars(year + 1)]), [year])
   const items = att.data?.items ?? []
@@ -39,7 +40,8 @@ export default function Approvals() {
   const reload = () => { leave.reload(); att.reload() }
   const holidayWork = hw.data?.requests.length ?? 0
   const hiring = hire.data ? hire.data.selection.length + hire.data.offers.length : 0
-  const total = rows.length + reviews + calendars + holidayWork + hiring
+  const letters = lets.data ? lets.data.letters.length + lets.data.probation.length : 0
+  const total = rows.length + reviews + calendars + holidayWork + hiring + letters
 
   return (
     <>
@@ -54,6 +56,7 @@ export default function Approvals() {
           {[
             { icon: Clock, title: 'Attendance reviews', body: 'Location, early check-outs, corrections, WFH days', n: att.data ? reviews : null, to: '/console/attendance' },
             { icon: UserCheck, title: 'Hiring', body: 'Select candidates, approve offers with salary', n: hire.data ? hiring : null, to: '/console/hiring' },
+            { icon: FileSignature, title: 'Letters & probation', body: 'Official letters and probation decisions', n: lets.data ? letters : null, to: '/console/letters' },
             { icon: CalendarClock, title: 'Holiday work', body: 'Approve weekend work, verify hours, grant comp-off', n: hw.data ? holidayWork : null, to: '/console/holiday-work' },
             { icon: CalendarHeart, title: 'Holiday calendar', body: 'Revisions waiting to publish', n: cal.data ? calendars : null, to: '/hr/holidays' },
             { icon: CalendarCheck, title: 'All leave requests', body: 'History and decided requests', n: null, to: '/console/leave' },
