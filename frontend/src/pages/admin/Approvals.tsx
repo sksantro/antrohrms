@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { CalendarCheck, CalendarClock, CalendarHeart, FileSignature, LogOut, UserCheck, Check, ChevronRight, Clock, House, Inbox, X } from 'lucide-react'
+import { CalendarCheck, CalendarClock, CalendarHeart, FileSignature, LogOut, Sparkles, UserCheck, Check, ChevronRight, Clock, House, Inbox, X } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Avatar, Card, CardHeader, PageHeader, Pill } from '../../components/ui'
@@ -18,6 +18,7 @@ export default function Approvals() {
   const att = useApi(() => api.exceptions(), [])
   const hire = useApi(() => api.hiring(), [])
   const lets = useApi(() => api.adminLetters(), [])
+  const apr = useApi(() => api.adminAppraisals(), [])
   const ex = useApi(() => Promise.all([api.exits(), api.assetDisputes()]), [])
   const hw = useApi(() => api.adminHolidayWork('REQUESTED,AWAITING_REVIEW'), [])
   const cal = useApi(() => Promise.all([api.calendars(year), api.calendars(year + 1)]), [year])
@@ -43,7 +44,8 @@ export default function Approvals() {
   const hiring = hire.data ? hire.data.selection.length + hire.data.offers.length : 0
   const letters = lets.data ? lets.data.letters.length + lets.data.probation.length : 0
   const exitsN = ex.data ? ex.data[0].resignations.filter((r) => r.status === 'SUBMITTED').length + ex.data[1].disputes.length + ex.data[0].exits.filter((x) => x.status === 'IN_PROGRESS' && x.fnf_status !== 'APPROVED' && !x.blockers.length).length : 0
-  const total = rows.length + reviews + calendars + holidayWork + hiring + letters + exitsN
+  const apprN = apr.data ? apr.data.reviews.filter((r) => r.status === 'MANAGER_COMPLETED').length : 0
+  const total = rows.length + reviews + calendars + holidayWork + hiring + letters + exitsN + apprN
 
   return (
     <>
@@ -58,6 +60,7 @@ export default function Approvals() {
           {[
             { icon: Clock, title: 'Attendance reviews', body: 'Location, early check-outs, corrections, WFH days', n: att.data ? reviews : null, to: '/console/attendance' },
             { icon: UserCheck, title: 'Hiring', body: 'Select candidates, approve offers with salary', n: hire.data ? hiring : null, to: '/console/hiring' },
+            { icon: Sparkles, title: 'Appraisals', body: 'Final rating, increment and promotion', n: apr.data ? apprN : null, to: '/console/appraisals' },
             { icon: LogOut, title: 'Exits & assets', body: 'Resignations, asset disputes, full & final', n: ex.data ? exitsN : null, to: '/console/exits' },
             { icon: FileSignature, title: 'Letters & probation', body: 'Official letters and probation decisions', n: lets.data ? letters : null, to: '/console/letters' },
             { icon: CalendarClock, title: 'Holiday work', body: 'Approve weekend work, verify hours, grant comp-off', n: hw.data ? holidayWork : null, to: '/console/holiday-work' },

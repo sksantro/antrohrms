@@ -43,6 +43,7 @@ api = [
     path("", include("recruitment.urls")),
     path("", include("onboarding.urls")),
     path("", include("exits.urls")),
+    path("", include("appraisals.urls")),
     path("", include(router.urls)),
 ]
 

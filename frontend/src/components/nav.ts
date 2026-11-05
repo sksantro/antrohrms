@@ -19,7 +19,7 @@ const SELF: NavSection = {
     { to: '/app/payslips', label: 'Payslips', icon: Receipt },
     { to: '/app/documents', label: 'Documents', icon: FileText },
     { to: '/app/assets', label: 'Assets', icon: Laptop },
-    { to: '/app/appraisal', label: 'Appraisal', icon: Star, planned: 'P5' },
+    { to: '/app/appraisal', label: 'Appraisal', icon: Star },
     { to: '/app/resignation', label: 'Resignation', icon: LogOut },
     { to: '/app/interviews', label: 'My Interviews', icon: Scorecard, interviewer: true },
     { to: '/app/people', label: 'People', icon: Users },
@@ -37,6 +37,7 @@ const HR: NavSection = {
     { to: '/hr/letters', label: 'Letter Drafts', icon: FileSignature },
     { to: '/hr/assets', label: 'Assets', icon: Laptop },
     { to: '/hr/exits', label: 'Exit Checklist', icon: ClipboardCheck },
+    { to: '/hr/appraisals', label: 'Appraisal Status', icon: Star },
   ],
 }
 
@@ -54,7 +55,7 @@ const ADMIN: NavSection = {
     { to: '/hr/holidays', label: 'Holidays', icon: Sun },
     { to: '/console/holiday-work', label: 'Holiday Work', icon: CalendarClock },
     { to: '/console/payroll', label: 'Payroll', icon: Wallet },
-    { to: '/console/appraisals', label: 'Appraisals', icon: Sparkles, planned: 'P5' },
+    { to: '/console/appraisals', label: 'Appraisals', icon: Sparkles },
     { to: '/console/reports', label: 'Reports', icon: FileSpreadsheet },
     { to: '/console/access', label: 'Access Management', icon: KeyRound },
     { to: '/console/settings', label: 'Policy Center', icon: Settings2 },
@@ -64,7 +65,7 @@ const ADMIN: NavSection = {
 
 const MANAGER: NavSection = {
   title: 'My team',
-  items: [{ to: '/manager/reviews', label: 'Team Reviews', icon: BadgeCheck, planned: 'P5' }],
+  items: [{ to: '/manager/reviews', label: 'Team Reviews', icon: BadgeCheck }],
 }
 
 export function navFor(role: Role, previews = false, interviewer = false): NavSection[] {

@@ -1,10 +1,10 @@
-import { Lock, Rocket } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { BrowserRouter, Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import { homeFor, navFor } from './components/nav'
+import { homeFor } from './components/nav'
 import { viewsFor } from './lib/auth'
 import Shell from './components/Shell'
-import { Card, PageHeader } from './components/ui'
+import { Card } from './components/ui'
 import type { ServerRole } from './lib/api'
 import { AuthProvider, useAuth } from './lib/auth'
 import { StoreProvider, useStore } from './lib/store'
@@ -37,6 +37,10 @@ import Letters from './pages/hr/Letters'
 import Documents from './pages/Documents'
 import CandidateDocuments from './pages/CandidateDocuments'
 import Resignation from './pages/Resignation'
+import Appraisal from './pages/Appraisal'
+import TeamReviews from './pages/TeamReviews'
+import AppraisalsAdmin from './pages/admin/AppraisalsAdmin'
+import AppraisalStatus from './pages/hr/AppraisalStatus'
 import Exits from './pages/hr/Exits'
 import ExitsAdmin from './pages/admin/ExitsAdmin'
 import Leave from './pages/Leave'
@@ -56,26 +60,6 @@ function Guard({ roles, children }: { roles: ServerRole[]; children: ReactNode }
       <p className="text-ink-500 mt-2">This area is restricted for your role. If you think this is a mistake, contact the Super Admin.</p>
       <Link to={homeFor(role)} className="btn-primary mt-6">Go to my home</Link>
     </Card>
-  )
-}
-
-function Planned() {
-  const { role } = useStore()
-  const { hasRole } = useAuth()
-  const { pathname } = useLocation()
-  const item = navFor(role, hasRole('SUPER_ADMIN')).flatMap((s) => s.items).find((i) => i.to === pathname)
-  return (
-    <>
-      <PageHeader eyebrow={`Phase ${item?.planned ?? ''}`} title={item?.label ?? 'Coming soon'} />
-      <Card className="relative overflow-hidden p-10 sm:p-14 text-center">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-50 via-white to-sky-50" />
-        <div className="relative">
-          <div className="size-16 rounded-3xl bg-gradient-to-br from-brand-500 to-brand-800 text-white grid place-items-center mx-auto shadow-glow"><Rocket size={28} /></div>
-          <h2 className="text-2xl font-bold mt-6">Arriving in phase {item?.planned}</h2>
-          <p className="text-ink-500 mt-2 max-w-md mx-auto">This module is specified in the BRD and is scheduled for its delivery phase, so each release can be tested and signed off before the next one starts.</p>
-        </div>
-      </Card>
-    </>
   )
 }
 
@@ -142,9 +126,10 @@ function AppRoutes() {
         <Route path="/hr/holidays" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><HolidaysAdmin /></Guard>} />
         <Route path="/console/payroll" element={<Guard roles={['SUPER_ADMIN']}><Payroll /></Guard>} />
         <Route path="/console/settings" element={<Guard roles={['SUPER_ADMIN']}><Policy /></Guard>} />
-        {['/app/appraisal', '/console/appraisals', '/manager/reviews'].map((p) => (
-          <Route key={p} path={p} element={<Planned />} />
-        ))}
+        <Route path="/app/appraisal" element={<Appraisal />} />
+        <Route path="/manager/reviews" element={<TeamReviews />} />
+        <Route path="/hr/appraisals" element={<Guard roles={['HR_OPERATIONS', 'SUPER_ADMIN']}><AppraisalStatus /></Guard>} />
+        <Route path="/console/appraisals" element={<Guard roles={['SUPER_ADMIN']}><AppraisalsAdmin /></Guard>} />
         <Route path="*" element={<Home404 />} />
       </Route>
       </Route>

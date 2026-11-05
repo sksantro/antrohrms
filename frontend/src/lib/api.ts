@@ -246,6 +246,17 @@ export interface ExitDTO {
   fnf_status: 'NOT_STARTED' | 'DRAFT' | 'APPROVED'; letters: { id: string; kind: string; status: LetterStatus }[]; completed_at: string | null; can_complete: boolean
   settlement?: { lines: SettlementLine[]; info: { monthly_gross: string | null; paid_days: number; month_days: number; el_available: number; warnings: string[] }; net: string; status: string; approved_at: string | null; digest: string }
 }
+export type ReviewStatus = 'OPEN' | 'SELF_SUBMITTED' | 'MANAGER_COMPLETED' | 'APPROVED'
+export interface ReviewQuestion { key: string; group: string; text: string; rated: boolean; weight: number }
+export interface ReviewAnswer { key: string; rating: number | null; text: string }
+export interface ReviewDTO {
+  id: string; employee: PersonRef; manager: PersonRef | null; cycle_year: number; due_date: string; opened_on: string; status: ReviewStatus; template_code: string
+  self_submitted_at: string | null; meeting_date: string | null; employee_ack_at: string | null; manager_completed_at: string | null; approved_at: string | null
+  questions?: ReviewQuestion[]; self_answers?: ReviewAnswer[]; self_score?: string | null; attachments?: { id: string; name: string }[]
+  strengths?: string; development_plan?: string; disagreements?: string; employee_comments?: string
+  manager_answers?: ReviewAnswer[]; manager_score?: string | null; manager_comments?: string; recommendation?: 'NONE' | 'INCREMENT' | 'PROMOTION' | 'BOTH'; recommendation_note?: string; admin_note?: string
+  final_rating?: string | null; new_designation?: string; effective_date?: string | null; current_gross?: string | null; new_gross?: string | null
+}
 export interface CompOffRule { active: boolean; full_day_hours: number; half_day_hours: number; expiry_days: number; review_note: string; updated_by?: string | null; effective_from?: string | null }
 export interface LeaveDTO {
   id: string; category: LeaveCat; category_name: string; start: string; end: string; half_day: boolean; days: string; reason: string; status: LeaveStatusDTO
@@ -413,6 +424,16 @@ export const api = {
   settlement: (id: string) => request<ExitDTO>('GET', `/admin/exits/${id}/settlement`),
   saveSettlement: (id: string, lines: SettlementLine[]) => request<ExitDTO>('PUT', `/admin/exits/${id}/settlement`, { lines }),
   approveSettlement: (id: string) => request<ExitDTO>('POST', `/admin/exits/${id}/settlement/approve`),
+  myAppraisal: () => request<{ reviews: ReviewDTO[]; next_due: string; open_days: number }>('GET', '/appraisal/me'),
+  saveSelf: (id: string, answers: ReviewAnswer[], submit: boolean) => request<ReviewDTO>('POST', `/appraisal/${id}/self`, { answers, submit }),
+  attachReview: (id: string, file: File) => { const f = new FormData(); f.append('file', file); return request<ReviewDTO>('POST', `/appraisal/${id}/attachments`, f) },
+  ackReview: (id: string, comments: string) => request<ReviewDTO>('POST', `/appraisal/${id}/acknowledge`, { comments }),
+  teamReviews: () => request<{ reviews: ReviewDTO[] }>('GET', '/manager/reviews'),
+  teamReview: (id: string, action: 'save' | 'meeting' | 'complete', body: Record<string, unknown> = {}) => request<ReviewDTO>('POST', `/manager/reviews/${id}/${action}`, body),
+  hrAppraisals: () => request<{ reviews: ReviewDTO[] }>('GET', '/hr/appraisals'),
+  adminAppraisals: () => request<{ reviews: ReviewDTO[]; employees: { id: string; display_name: string; designation: string; next_due: string; has_review: boolean }[] }>('GET', '/admin/appraisals'),
+  openAppraisal: (employee: string) => request<ReviewDTO>('POST', '/admin/appraisals', { employee }),
+  decideAppraisal: (id: string, body: Record<string, unknown>) => request<ReviewDTO>('POST', `/admin/appraisals/${id}/decision`, body),
   adminLeave: (status?: string) => request<{ requests: LeaveDTO[] }>('GET', `/admin/leave/requests${qs({ status })}`),
   decideLeave: (id: string, decision: 'APPROVE' | 'REJECT' | 'NEEDS_CHANGES', note: string) => request<LeaveDTO>('POST', `/admin/leave/requests/${id}/decision`, { decision, note }),
   employeeLeaveBalance: (id: string, year: number) => request<{ balances: Record<LeaveCat, LeaveBalance> }>('GET', `/admin/leave/balances/${id}?year=${year}`),

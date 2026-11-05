@@ -69,7 +69,10 @@ In development, emails (such as invites) are printed to the API server's console
 |---|---|
 | **P0 Platform foundation** | Done: see [docs/PHASE_0_ACCEPTANCE.md](docs/PHASE_0_ACCEPTANCE.md) |
 | **P1 Attendance pilot** | Done: see [docs/PHASE_1_ACCEPTANCE.md](docs/PHASE_1_ACCEPTANCE.md) |
-| P2–P5 | UI for several screens on sample data; pages marked **Sample data** in the app |
+| **P2 Leave, holidays, comp-off, payroll** | Done: see [docs/PHASE_2_ACCEPTANCE.md](docs/PHASE_2_ACCEPTANCE.md) |
+| **P3 Recruitment and onboarding** | Done: candidates, interviews, scorecards, offers, OTP document portal, Mark Joined, letters, probation (`recruitment/`, `onboarding/` tests) |
+| **P4 Exit and assets** | Done: asset register, resignation, exit checklist, F&F, access revoke (`exits/` tests) |
+| **P5 Appraisal** | Done: anniversary reviews, manager discussion, Super Admin outcome, increments (`appraisals/` tests) |
 
 ## Layout
 
