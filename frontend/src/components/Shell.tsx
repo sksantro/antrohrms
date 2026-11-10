@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth'
 import { useMe, useStore } from '../lib/store'
 import { homeFor, navFor } from './nav'
 import { useDialog, useEscape } from './ui'
+import PageGuard from './PageGuard'
 import { initials } from '../lib/format'
 
 export function Logo({ light, size = 'md' }: { light?: boolean; size?: 'md' | 'lg' }) {
@@ -305,7 +306,7 @@ export default function Shell() {
           <RoleSwitcher />
         </header>
         <main id="main" tabIndex={-1} className="flex-1 px-4 sm:px-8 xl:px-10 py-6 sm:py-8 w-full outline-none">
-          <Outlet />
+          <PageGuard key={loc.pathname}><Outlet /></PageGuard>
         </main>
       </div>
       <CommandPalette open={cmd} onClose={() => setCmd(false)} />

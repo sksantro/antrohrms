@@ -146,7 +146,8 @@ def _close(hw: HolidayWork) -> None:
     if not hw.running:
         return
     day_end = timezone.make_aware(datetime.combine(hw.work_date + timedelta(days=1), time.min))
-    hw.intervals[-1][1] = min(timezone.now(), day_end).isoformat()
+    started = datetime.fromisoformat(hw.intervals[-1][0])
+    hw.intervals[-1][1] = max(started, min(timezone.now(), day_end)).isoformat()  # never negative
 
 
 def _seconds(hw: HolidayWork) -> int:
